@@ -1,0 +1,27 @@
+version: '3'
+services:
+  db:
+    image: mysql:8.1
+    command: --init-file /data/application/init.sql
+    volumes:
+      - ./db/init.sql:/data/application/init.sql
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+  adminer:
+    image: adminer
+    ports:
+      - 8080:8080
+  api:
+    depends_on:
+      - db
+    restart: on-failure
+    build:
+      context: ./
+      dockerfile: ./backend/Dockerfile
+    ports:
+      - 3333:3333
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3306"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
