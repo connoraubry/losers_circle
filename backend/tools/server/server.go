@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"fmt"
@@ -6,13 +6,10 @@ import (
 	"math/rand"
 	"net/http"
 
+	"github.com/connoraubry/losers_circle/backend/tools/db"
+	log "github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 )
-
-type TestTable struct {
-	gorm.Model
-	Number int
-}
 
 type Server struct {
 	DB  *gorm.DB
@@ -21,8 +18,8 @@ type Server struct {
 
 func New() *Server {
 	s := &Server{}
-	s.DB = NewDB()
-	s.Val = rand.Intn(100000)
+	s.DB = db.NewDB(db.Options{})
+	s.Val = rand.Intn(100000000)
 	return s
 }
 
@@ -34,11 +31,7 @@ func (s *Server) Serve() error {
 
 func (s *Server) getIndex(w http.ResponseWriter, r *http.Request) {
 
-	fmt.Println("http response requested from /")
+	log.Info("http response requested from /")
 	s.Val += 1
-
-	t := TestTable{Number: s.Val}
-	s.DB.Create(&t)
-
 	io.WriteString(w, fmt.Sprintf("test - %v", s.Val))
 }
