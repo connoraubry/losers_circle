@@ -1,4 +1,4 @@
-version: '3'
+version: '3.9'
 services:
   db:
     image: mysql:8.1
@@ -18,8 +18,8 @@ services:
       - db
     restart: on-failure
     build:
-      context: ./
-      dockerfile: ./backend/docker/api/Dockerfile
+      context: ./api 
+      dockerfile: docker/api/Dockerfile
     ports:
       - 3333:3333
     healthcheck:
@@ -27,3 +27,13 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - 5173:5173
+    volumes:
+      - './frontend:/app'
+      - /app/node_modules
+    # command: /bin/sh -c "npm run dev"
+

@@ -94,6 +94,7 @@ func NewDB(opts Options) *gorm.DB {
 	log.Info("Connected to database")
 
 	Migrate(db)
+
 	return db
 }
 

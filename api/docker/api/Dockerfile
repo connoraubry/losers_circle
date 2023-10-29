@@ -2,7 +2,7 @@ FROM golang:1.21
 
 WORKDIR /app
 
-COPY ./backend/ ./
+COPY . ./
 
 RUN go mod download
 

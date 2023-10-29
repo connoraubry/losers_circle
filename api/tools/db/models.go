@@ -32,6 +32,8 @@ type Game struct {
 
 	WeekID int
 	Week   Week
+	YearID int
+	Year   Year
 }
 
 type Week struct {

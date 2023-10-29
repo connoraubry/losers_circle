@@ -12,27 +12,28 @@ import (
 	"github.com/connoraubry/losers_circle/backend/tools/db"
 )
 
-type ScraperConfig struct {
+type Config struct {
+	UseDB bool
+	DBOpt db.Options
 }
 
 type Scraper struct {
-	cfg       ScraperConfig
+	cfg       Config
 	Collector *colly.Collector
 	DB        *gorm.DB
 
 	Games []Game
-
-	UseDB bool
 }
 
-func New(useDB bool) *Scraper {
+func New(cfg Config) *Scraper {
 	s := &Scraper{}
 
-	s.UseDB = useDB
+	s.cfg = cfg
+
 	c := colly.NewCollector()
 
-	if s.UseDB {
-		s.DB = db.NewDB(db.Options{Host: "localhost"})
+	if s.cfg.UseDB {
+		s.DB = db.NewDB(s.cfg.DBOpt)
 	}
 
 	c.OnRequest(func(r *colly.Request) {
@@ -142,7 +143,7 @@ func BuildURL(year, week int) string {
 func (s *Scraper) ScrapeYear(year int) error {
 	log.Debug("Entering Scrape Year Function")
 	var yearDB db.Year
-	if s.UseDB {
+	if s.cfg.UseDB {
 		s.DB.Where(&db.Year{Year: year}).FirstOrCreate(&yearDB)
 	}
 
@@ -150,7 +151,7 @@ func (s *Scraper) ScrapeYear(year int) error {
 
 	for week := 1; week < 19; week++ {
 		var weekDB db.Week
-		if s.UseDB {
+		if s.cfg.UseDB {
 			match := db.Week{Week: week, YearID: int(yearDB.ID)}
 			s.DB.Where(match).FirstOrCreate(&weekDB)
 		}
@@ -171,10 +172,10 @@ func (s *Scraper) ScrapeYear(year int) error {
 			awayDBmatch := db.Team{
 				Name: game.Away,
 			}
-			if s.UseDB {
+			if s.cfg.UseDB {
 				s.DB.Where(homeDBmatch).FirstOrCreate(&homeDB)
 			}
-			if s.UseDB {
+			if s.cfg.UseDB {
 				s.DB.Where(awayDBmatch).FirstOrCreate(&awayDB)
 			}
 
@@ -191,7 +192,7 @@ func (s *Scraper) ScrapeYear(year int) error {
 			log.Debug("Creating gameDB")
 
 			var gameDB db.Game
-			if s.UseDB {
+			if s.cfg.UseDB {
 				gameDBmatch := db.Game{
 					HomeID: int(homeDB.ID),
 					AwayID: int(awayDB.ID),
@@ -209,8 +210,13 @@ func (s *Scraper) ScrapeYear(year int) error {
 			gameDB.HomePoints = game.HomeScore
 			gameDB.AwayPoints = game.AwayScore
 			gameDB.WinnerID = winnerID
+			gameDB.YearID = int(yearDB.ID)
 
 			gameDB.Tie = game.AwayScore == game.HomeScore
+
+			if time.Now().After(game.Date) {
+				gameDB.Completed = true
+			}
 			s.DB.Save(&gameDB)
 		}
 		time.Sleep(3 * time.Second)
