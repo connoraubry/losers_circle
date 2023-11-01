@@ -1,6 +1,7 @@
 bin/*
 backend/bin/*
+api/bin/*
+
 frontend/node_modules
 .DS_Store
 .env
-api/bin
