@@ -4,7 +4,5 @@ FROM node:lts-alpine
 WORKDIR /app
 COPY package*.json ./
 RUN yarn
-
 COPY . .
-
-CMD [ "yarn", "dev", "--host"]
+# CMD [ "yarn", "dev", "--host"]

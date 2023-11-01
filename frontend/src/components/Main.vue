@@ -6,6 +6,9 @@ export default{
             longestCycle: [] 
         }
     },
+    created() {
+        this.updateLongestCycle()
+    },
     computed: {
         composedOrder(){
             return this.longestCycle.join(" > ")
@@ -15,20 +18,21 @@ export default{
         clickButtonHandler() {
             console.log("Click!")
             this.count ++
+            this.updateLongestCycle()
+        },
+        updateLongestCycle(){
             this.$http.get("http://127.0.0.1:3333/cycle")
                 .then((resp) => {
                     this.longestCycle = resp.data
-                })     
+                })    
         }
     }
 }
 </script>
 
 <template>
-    <button @click="clickButtonHandler">Click me</button>
+    <p> {{ longestCycle.length }}</p>
     <p>{{ composedOrder }}</p>
-    <p>{{ count }}</p>
-
 </template>
 <syle>
 

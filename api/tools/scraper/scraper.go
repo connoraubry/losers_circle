@@ -15,6 +15,7 @@ import (
 type Config struct {
 	UseDB bool
 	DBOpt db.Options
+	Week  int
 }
 
 type Scraper struct {
@@ -57,7 +58,10 @@ func New(cfg Config) *Scraper {
 	})
 
 	c.OnHTML("table.teams tbody", func(e *colly.HTMLElement) {
-		game := ProcessGame(e)
+		game, err := ProcessGame(e)
+		if err != nil {
+			return
+		}
 		s.Games = append(s.Games, game)
 	})
 
@@ -70,17 +74,19 @@ func New(cfg Config) *Scraper {
 	return s
 }
 
-func ProcessGame(e *colly.HTMLElement) Game {
+func ProcessGame(e *colly.HTMLElement) (Game, error) {
 
 	g := Game{}
+	var err error
+	var date time.Time
 
 	e.ForEach("tr", func(idx int, elem *colly.HTMLElement) {
 
 		switch idx {
 		case 0:
-			date, err := time.Parse("Jan _2, 2006", elem.Text)
+			date, err = time.Parse("Jan _2, 2006", elem.Text)
 			if err != nil {
-				log.Fatalf("Error parsing date: %v %v", elem.Text, err)
+				return
 			}
 			g.Date = date
 		case 1:
@@ -94,7 +100,11 @@ func ProcessGame(e *colly.HTMLElement) Game {
 		}
 
 	})
-	return g
+
+	if err != nil {
+		return g, fmt.Errorf("Error parsing date: %v", err)
+	}
+	return g, nil
 }
 
 type Game struct {
@@ -140,6 +150,20 @@ func BuildURL(year, week int) string {
 	return fmt.Sprintf("https://www.pro-football-reference.com/years/%v/week_%v.htm", year, week)
 }
 
+func (s *Scraper) GetTeamByName(name string) db.Team {
+
+	var team db.Team
+
+	homeDBmatch := db.Team{
+		Name: name,
+	}
+	if s.cfg.UseDB {
+		s.DB.Where(homeDBmatch).FirstOrCreate(&team)
+	}
+
+	return team
+}
+
 func (s *Scraper) ScrapeYear(year int) error {
 	log.Debug("Entering Scrape Year Function")
 	var yearDB db.Year
@@ -147,9 +171,13 @@ func (s *Scraper) ScrapeYear(year int) error {
 		s.DB.Where(&db.Year{Year: year}).FirstOrCreate(&yearDB)
 	}
 
-	fmt.Println(yearDB)
-
 	for week := 1; week < 19; week++ {
+
+		if s.cfg.Week != 0 && s.cfg.Week != week {
+			continue
+		}
+
+		//Get Week database entry
 		var weekDB db.Week
 		if s.cfg.UseDB {
 			match := db.Week{Week: week, YearID: int(yearDB.ID)}
@@ -164,30 +192,12 @@ func (s *Scraper) ScrapeYear(year int) error {
 		for _, game := range s.Games {
 			log.WithFields(log.Fields{"home": game.Home, "away": game.Away}).Debug("Entering game")
 
-			var homeDB, awayDB db.Team
+			homeDB := s.GetTeamByName(game.Home)
+			awayDB := s.GetTeamByName(game.Away)
 
-			homeDBmatch := db.Team{
-				Name: game.Home,
-			}
-			awayDBmatch := db.Team{
-				Name: game.Away,
-			}
-			if s.cfg.UseDB {
-				s.DB.Where(homeDBmatch).FirstOrCreate(&homeDB)
-			}
-			if s.cfg.UseDB {
-				s.DB.Where(awayDBmatch).FirstOrCreate(&awayDB)
-			}
-
-			log.WithFields(log.Fields{"homeid": homeDB.ID, "awayid": awayDB.ID})
-			log.Debug("Got home and away teams")
-
-			var winnerID int
-			if game.HomeScore > game.AwayScore {
-				winnerID = int(homeDB.ID)
-			} else if game.AwayScore > game.HomeScore {
-				winnerID = int(awayDB.ID)
-			}
+			log.WithFields(
+				log.Fields{"homeid": homeDB.ID, "awayid": awayDB.ID},
+			).Debug("Got home and away teams")
 
 			log.Debug("Creating gameDB")
 
@@ -197,19 +207,18 @@ func (s *Scraper) ScrapeYear(year int) error {
 					HomeID: int(homeDB.ID),
 					AwayID: int(awayDB.ID),
 					WeekID: int(weekDB.ID),
+					YearID: int(yearDB.ID),
 					Date:   game.Date,
 				}
 				res := s.DB.Where(gameDBmatch).FirstOrCreate(&gameDB)
 				if res.Error != nil {
-					log.Fatal("Fatal error with gamedb:", res.Error)
+					log.Fatal("Fatal error with gamedb: ", res.Error)
 				}
 			}
 
 			log.Debug("Got Game DB")
-
 			gameDB.HomePoints = game.HomeScore
 			gameDB.AwayPoints = game.AwayScore
-			gameDB.WinnerID = winnerID
 			gameDB.YearID = int(yearDB.ID)
 
 			gameDB.Tie = game.AwayScore == game.HomeScore

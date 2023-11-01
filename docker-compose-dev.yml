@@ -1,6 +1,7 @@
 version: '3.9'
 services:
   db:
+    restart: on-failure:5
     image: mysql:8.1
     command: --init-file /data/application/init.sql
     volumes:
@@ -10,13 +11,14 @@ services:
     ports:
       - 3306:3306
   adminer:
+    restart: on-failure:5
     image: adminer
     ports:
       - 8080:8080
   api:
     depends_on:
       - db
-    restart: on-failure
+    restart: on-failure:5
     build:
       context: ./api 
       dockerfile: docker/api/Dockerfile
@@ -28,6 +30,7 @@ services:
       timeout: 5s
       retries: 5
   frontend:
+    restart: on-failure:5
     build:
       context: ./frontend
     ports:
@@ -35,5 +38,4 @@ services:
     volumes:
       - './frontend:/app'
       - /app/node_modules
-    # command: /bin/sh -c "npm run dev"
-
+    command: /bin/sh -c "yarn dev --host"

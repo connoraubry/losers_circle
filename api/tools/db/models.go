@@ -22,8 +22,6 @@ type Game struct {
 	AwayID     int
 	Away       Team
 	AwayPoints int
-	WinnerID   int `gorm:"default:null"`
-	Winner     Team
 
 	Completed bool
 	Tie       bool

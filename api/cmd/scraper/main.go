@@ -13,7 +13,7 @@ import (
 var (
 	logLevel = flag.String("logLevel", "info", "Level for log outputs [debug, info, warning, error]")
 	year     = flag.Int("year", time.Now().Year(), "Year to scrape")
-	month    = flag.Int("month", 0, "Month to scrape (0 to scrape all months)")
+	week     = flag.Int("week", 0, "Week to scrape (0 to scrape all weeks)")
 
 	dbSkip = flag.Bool("skipDB", false, "Don't use database")
 	dbHost = flag.String("db-host", "localhost", "Host of db")
@@ -32,6 +32,7 @@ func main() {
 		DBOpt: db.Options{
 			Host: *dbHost,
 		},
+		Week: *week,
 	}
 
 	s := scraper.New(opts)
