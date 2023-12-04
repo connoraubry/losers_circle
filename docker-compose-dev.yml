@@ -15,13 +15,13 @@ services:
     image: adminer
     ports:
       - 8080:8080
-  api:
+  server:
     depends_on:
       - db
     restart: on-failure:5
     build:
-      context: ./api 
-      dockerfile: docker/api/Dockerfile
+      context: ./server
+      dockerfile: docker/server/Dockerfile
     ports:
       - 3333:3333
     healthcheck:
@@ -29,13 +29,3 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-  frontend:
-    restart: on-failure:5
-    build:
-      context: ./frontend
-    ports:
-      - 5173:5173
-    volumes:
-      - './frontend:/app'
-      - /app/node_modules
-    command: /bin/sh -c "yarn dev --host"
