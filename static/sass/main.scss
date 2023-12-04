@@ -1,0 +1,45 @@
+#graph {
+  min-height: 400px;
+}
+.matchupimg {
+  width: 3rem;
+}
+
+.matchup {
+  border: 3px solid gold;
+  margin: 5px auto;
+  display: inline-flex;
+  flex: 300px;
+}
+.team {
+  display: inline-block;
+  min-width: 3em;
+  margin: 5px auto;
+  padding: auto 5px;
+  justify-content: center;
+  text-align: center;
+}
+div[gold-background]{
+  background: gold;
+}
+.matchup[winner=""] > div  {
+  opacity: 80%;
+}
+
+.matchup[winner="left"]{
+  > div:first-child  {
+    opacity: 100%;
+  }
+  > div:last-child {
+    opacity: 50%;
+  } 
+}
+
+.matchup[winner="right"]{
+    > div:first-child {
+        opacity: 50%;
+    } 
+    > div:last-child {
+        opacity: 100%;
+    }
+}

@@ -1,0 +1,11 @@
+{{ define "test" }}
+<div id="test-div">
+  <button hx-get="/test"
+    hx-trigger="click"
+    hx-target="test-div"
+    hx-swap="innerHTML"
+    >
+    Click Test
+  </button>
+</div>
+{{end}}

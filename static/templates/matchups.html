@@ -1,0 +1,50 @@
+{{ define "matchups" }}
+<section id="matchups" class="flex-row matchups">
+  {{ range . }}
+  <div class="flex-small">
+    {{ template "matchup" .}}
+  </div>
+  {{ end }}
+  <div>
+    <button hx-get="/api/testMatchup" hx-trigger="click"
+            hx-target="#matchups" hx-swap="outerHTML">
+      Refresh
+    </button>
+  </div>
+</section>
+<style>
+.matchups {
+  padding: 0px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-evenly;
+  flex-direction: row;
+  align-items: center;
+}
+</style>
+{{end}}
+
+{{ define "matchup" }}
+<div class="matchup" winner="">
+    <div class="team" onclick="teamClick(this)" pos='left'>
+      {{ template "team" .Team1 }}
+    </div>
+    <div class="team" 
+        onclick="teamClick(this)" 
+        pos='right'>
+      {{ template "team" .Team2 }}
+    </div>
+</div>
+<style>
+</style>
+{{end}}
+
+{{ define "team" }}
+<img class="matchupimg" src="/static/images/teams/{{.Name}}.png"/>
+{{.Name}}
+{{end}}
+
+{{ define "matchup-opts" }}
+<div>
+</div>
+{{end}}

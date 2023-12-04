@@ -1,0 +1,309 @@
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+    <title>
+      Loser&#39;s Circle
+    </title>
+    <link rel="icon" href="/static/favicon.ico">
+    <link rel="stylesheet" type="text/css" href="/static/css/primitive.css" />
+    <link rel="stylesheet" type="text/css" href="/static/css/main.css" />
+    <script src="https://unpkg.com/htmx.org@1.9.8" integrity="sha384-rgjA7mptc2ETQqXoYC3/zJvkU7K/aP44Y+z7xQuJiVnB/422P/Ak+F/AqFR7E4Wr" crossorigin="anonymous"></script>
+    <script src="static/js/graph.js"></script>
+  </head>
+  <body class="medium-container">
+    <header class="border goldborder">
+      <div class="vertical-center grid-middle">
+        <h1>
+          Loser's Circle
+        </h1>
+      </div>
+      <div id="controls grid-end">
+        <select id="choose" class="center flex-small">
+          <option value="test1">
+            NFL
+          </option>
+          <option value="test2">
+            CFB
+          </option>
+        </select>
+      </div>
+    </header>
+    <main>
+      <section class="goldborder" id="graph"></section>
+      <section id="matchups" class="flex-row matchups">
+        <div class="flex-small">
+          <div class="matchup" winner="">
+            <div class="team" onclick="teamClick(this)" pos='left'>
+              <img class="matchupimg" src="/static/images/teams/ARI.png"/>
+              ARI
+            </div>
+            <div class="team" 
+        onclick="teamClick(this)" 
+        pos='right'>
+              <img class="matchupimg" src="/static/images/teams/NE.png"/>
+              NE
+            </div>
+          </div>
+          <style></style>
+        </div>
+        <div class="flex-small">
+          <div class="matchup" winner="">
+            <div class="team" onclick="teamClick(this)" pos='left'>
+              <img class="matchupimg" src="/static/images/teams/KC.png"/>
+              KC
+            </div>
+            <div class="team" 
+        onclick="teamClick(this)" 
+        pos='right'>
+              <img class="matchupimg" src="/static/images/teams/CAR.png"/>
+              CAR
+            </div>
+          </div>
+          <style></style>
+        </div>
+        <div class="flex-small">
+          <div class="matchup" winner="">
+            <div class="team" onclick="teamClick(this)" pos='left'>
+              <img class="matchupimg" src="/static/images/teams/PHI.png"/>
+              PHI
+            </div>
+            <div class="team" 
+        onclick="teamClick(this)" 
+        pos='right'>
+              <img class="matchupimg" src="/static/images/teams/HOU.png"/>
+              HOU
+            </div>
+          </div>
+          <style></style>
+        </div>
+        <div class="flex-small">
+          <div class="matchup" winner="">
+            <div class="team" onclick="teamClick(this)" pos='left'>
+              <img class="matchupimg" src="/static/images/teams/NYG.png"/>
+              NYG
+            </div>
+            <div class="team" 
+        onclick="teamClick(this)" 
+        pos='right'>
+              <img class="matchupimg" src="/static/images/teams/DEN.png"/>
+              DEN
+            </div>
+          </div>
+          <style></style>
+        </div>
+        <div class="flex-small">
+          <div class="matchup" winner="">
+            <div class="team" onclick="teamClick(this)" pos='left'>
+              <img class="matchupimg" src="/static/images/teams/GB.png"/>
+              GB
+            </div>
+            <div class="team" 
+        onclick="teamClick(this)" 
+        pos='right'>
+              <img class="matchupimg" src="/static/images/teams/IND.png"/>
+              IND
+            </div>
+          </div>
+          <style></style>
+        </div>
+        <div class="flex-small">
+          <div class="matchup" winner="">
+            <div class="team" onclick="teamClick(this)" pos='left'>
+              <img class="matchupimg" src="/static/images/teams/CHI.png"/>
+              CHI
+            </div>
+            <div class="team" 
+        onclick="teamClick(this)" 
+        pos='right'>
+              <img class="matchupimg" src="/static/images/teams/NO.png"/>
+              NO
+            </div>
+          </div>
+          <style></style>
+        </div>
+        <div class="flex-small">
+          <div class="matchup" winner="">
+            <div class="team" onclick="teamClick(this)" pos='left'>
+              <img class="matchupimg" src="/static/images/teams/LAC.png"/>
+              LAC
+            </div>
+            <div class="team" 
+        onclick="teamClick(this)" 
+        pos='right'>
+              <img class="matchupimg" src="/static/images/teams/SF.png"/>
+              SF
+            </div>
+          </div>
+          <style></style>
+        </div>
+        <div class="flex-small">
+          <div class="matchup" winner="">
+            <div class="team" onclick="teamClick(this)" pos='left'>
+              <img class="matchupimg" src="/static/images/teams/PIT.png"/>
+              PIT
+            </div>
+            <div class="team" 
+        onclick="teamClick(this)" 
+        pos='right'>
+              <img class="matchupimg" src="/static/images/teams/CIN.png"/>
+              CIN
+            </div>
+          </div>
+          <style></style>
+        </div>
+        <div class="flex-small">
+          <div class="matchup" winner="">
+            <div class="team" onclick="teamClick(this)" pos='left'>
+              <img class="matchupimg" src="/static/images/teams/DET.png"/>
+              DET
+            </div>
+            <div class="team" 
+        onclick="teamClick(this)" 
+        pos='right'>
+              <img class="matchupimg" src="/static/images/teams/BUF.png"/>
+              BUF
+            </div>
+          </div>
+          <style></style>
+        </div>
+        <div class="flex-small">
+          <div class="matchup" winner="">
+            <div class="team" onclick="teamClick(this)" pos='left'>
+              <img class="matchupimg" src="/static/images/teams/MIA.png"/>
+              MIA
+            </div>
+            <div class="team" 
+        onclick="teamClick(this)" 
+        pos='right'>
+              <img class="matchupimg" src="/static/images/teams/LAR.png"/>
+              LAR
+            </div>
+          </div>
+          <style></style>
+        </div>
+        <div class="flex-small">
+          <div class="matchup" winner="">
+            <div class="team" onclick="teamClick(this)" pos='left'>
+              <img class="matchupimg" src="/static/images/teams/ATL.png"/>
+              ATL
+            </div>
+            <div class="team" 
+        onclick="teamClick(this)" 
+        pos='right'>
+              <img class="matchupimg" src="/static/images/teams/MIN.png"/>
+              MIN
+            </div>
+          </div>
+          <style></style>
+        </div>
+        <div class="flex-small">
+          <div class="matchup" winner="">
+            <div class="team" onclick="teamClick(this)" pos='left'>
+              <img class="matchupimg" src="/static/images/teams/TEN.png"/>
+              TEN
+            </div>
+            <div class="team" 
+        onclick="teamClick(this)" 
+        pos='right'>
+              <img class="matchupimg" src="/static/images/teams/JAX.png"/>
+              JAX
+            </div>
+          </div>
+          <style></style>
+        </div>
+        <div class="flex-small">
+          <div class="matchup" winner="">
+            <div class="team" onclick="teamClick(this)" pos='left'>
+              <img class="matchupimg" src="/static/images/teams/SEA.png"/>
+              SEA
+            </div>
+            <div class="team" 
+        onclick="teamClick(this)" 
+        pos='right'>
+              <img class="matchupimg" src="/static/images/teams/TB.png"/>
+              TB
+            </div>
+          </div>
+          <style></style>
+        </div>
+        <div class="flex-small">
+          <div class="matchup" winner="">
+            <div class="team" onclick="teamClick(this)" pos='left'>
+              <img class="matchupimg" src="/static/images/teams/LV.png"/>
+              LV
+            </div>
+            <div class="team" 
+        onclick="teamClick(this)" 
+        pos='right'>
+              <img class="matchupimg" src="/static/images/teams/BAL.png"/>
+              BAL
+            </div>
+          </div>
+          <style></style>
+        </div>
+        <div class="flex-small">
+          <div class="matchup" winner="">
+            <div class="team" onclick="teamClick(this)" pos='left'>
+              <img class="matchupimg" src="/static/images/teams/DAL.png"/>
+              DAL
+            </div>
+            <div class="team" 
+        onclick="teamClick(this)" 
+        pos='right'>
+              <img class="matchupimg" src="/static/images/teams/CLE.png"/>
+              CLE
+            </div>
+          </div>
+          <style></style>
+        </div>
+        <div class="flex-small">
+          <div class="matchup" winner="">
+            <div class="team" onclick="teamClick(this)" pos='left'>
+              <img class="matchupimg" src="/static/images/teams/NYJ.png"/>
+              NYJ
+            </div>
+            <div class="team" 
+        onclick="teamClick(this)" 
+        pos='right'>
+              <img class="matchupimg" src="/static/images/teams/WSH.png"/>
+              WSH
+            </div>
+          </div>
+          <style></style>
+        </div>
+        <div>
+          <button hx-get="/api/testMatchup" hx-trigger="click"
+            hx-target="#matchups" hx-swap="outerHTML">
+            Refresh
+          </button>
+        </div>
+      </section>
+      <style>
+        .matchups {
+        padding: 0px;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-evenly;
+        flex-direction: row;
+        align-items: center;
+        }
+      </style>
+    </main>
+    <div id="test-div">
+      <button hx-get="/test"
+    hx-trigger="click"
+    hx-target="test-div"
+    hx-swap="innerHTML"
+    >
+        Click Test
+      </button>
+    </div>
+    <footer class="goldborder">
+      <h3>
+        Footer
+      </h3>
+    </footer>
+  </body>
+</html>

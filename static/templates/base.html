@@ -1,0 +1,32 @@
+{{define "base"}}
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+
+    <title>{{ .Title }}</title>
+
+    <link rel="icon" href="/static/favicon.ico">
+
+    <!-- CSS -->
+    <link rel="stylesheet" type="text/css" href="/static/css/primitive.css" />
+    <link rel="stylesheet" type="text/css" href="/static/css/main.css" />
+
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@1.9.8" integrity="sha384-rgjA7mptc2ETQqXoYC3/zJvkU7K/aP44Y+z7xQuJiVnB/422P/Ak+F/AqFR7E4Wr" crossorigin="anonymous"></script>
+    <script src="static/js/graph.js"></script>
+  </head>
+  <body class="medium-container">
+    {{ template "header" . }}
+
+    <main>
+      {{ template "graph" . }}
+      {{ template "matchups" .Matchups }}
+    </main>
+    {{ template "test" . }}
+
+    {{ template "footer" . }}
+  </body>  
+</html>
+{{end}}
