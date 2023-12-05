@@ -1,8 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/connoraubry/losers_circle/src/scraper"
@@ -26,7 +28,26 @@ func main() {
 	}
 
 	s := scraper.New(opts)
-	s.ScrapeYear(*year)
+	weeks := s.ScrapeYear(*year)
+
+	fmt.Println(weeks)
+	bytes, err := json.Marshal(weeks)
+	if err != nil {
+		log.Error("Error marshaling weeks:", err)
+	}
+	filename := GenFilename(*year)
+
+	f, err := os.Create(filename)
+	if err != nil {
+		log.Error(err)
+	}
+	defer f.Close()
+
+	f.Write(bytes)
 
 	fmt.Println(s.Games)
+}
+
+func GenFilename(year int) string {
+	return fmt.Sprintf("data/nfl/%d.json", year)
 }

@@ -92,6 +92,9 @@ func ProcessGame(e *colly.HTMLElement) (Game, error) {
 				return
 			}
 			g.Date = date
+
+			g.Complete = time.Now().After(date)
+
 		case 1:
 			row := ProcessTeamRow(elem)
 			g.Away = row.Team
@@ -142,9 +145,16 @@ func BuildURL(year, week int) string {
 	return fmt.Sprintf("https://www.pro-football-reference.com/years/%v/week_%v.htm", year, week)
 }
 
-func (s *Scraper) ScrapeYear(year int) error {
+type Week struct {
+	Year  int
+	Week  int
+	Games []Game
+}
+
+func (s *Scraper) ScrapeYear(year int) []Week {
 	log.Debug("Entering Scrape Year Function")
 
+	var weeks []Week
 	for week := 1; week < 19; week++ {
 
 		if s.cfg.Week != 0 && s.cfg.Week != week {
@@ -156,14 +166,14 @@ func (s *Scraper) ScrapeYear(year int) error {
 
 		s.Collector.Visit(url)
 
+		W := Week{Year: year, Week: week}
 		for _, game := range s.Games {
 			logFields := log.Fields{"home": game.Home, "away": game.Away}
 			log.WithFields(logFields).Debug("Entering game")
-
-			fmt.Println(game)
+			W.Games = append(W.Games, game)
 		}
+		weeks = append(weeks, W)
 		time.Sleep(3 * time.Second)
 	}
-
-	return nil
+	return weeks
 }

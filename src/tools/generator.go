@@ -22,7 +22,7 @@ func GenerateMain() []byte {
 		Body: Inner{
 			Title: "Test Inner Title",
 			Body:  "Test Inner Body"},
-		Title:    "Loser's Circle",
+		Title:    "Circle of Suck",
 		Matchups: dummyMatchups(),
 	}
 	t.ExecuteTemplate(&b, "base", page)
