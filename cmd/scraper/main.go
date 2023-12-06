@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/connoraubry/losers_circle/src/scraper"
@@ -35,7 +36,9 @@ func main() {
 	if err != nil {
 		log.Error("Error marshaling weeks:", err)
 	}
-	filename := GenFilename(*year)
+
+	filename := GenFilename(*year, *week)
+	EnsureDir(filename)
 
 	f, err := os.Create(filename)
 	if err != nil {
@@ -48,6 +51,15 @@ func main() {
 	fmt.Println(s.Games)
 }
 
-func GenFilename(year int) string {
-	return fmt.Sprintf("data/nfl/%d.json", year)
+func EnsureDir(path string) {
+	newpath := filepath.Dir(path)
+	os.MkdirAll(newpath, 0o755)
+}
+
+func GenFilename(year, week int) string {
+	if week != 0 {
+		return fmt.Sprintf("data/nfl/fragment/%d/week_%02d.json", year, week)
+	}
+
+	return fmt.Sprintf("data/nfl/full/%d.json", year)
 }
