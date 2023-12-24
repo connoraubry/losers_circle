@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/connoraubry/losers_circle/src/tools"
 	"github.com/gocolly/colly"
 	log "github.com/sirupsen/logrus"
 )
@@ -17,22 +18,17 @@ type Config struct {
 	Week int
 }
 
-type Game struct {
-	Home string
-	Away string
-
-	HomeScore int
-	AwayScore int
-
-	Date     time.Time
-	Complete bool
-}
-
 type Scraper struct {
 	cfg       Config
 	Collector *colly.Collector
 
-	Games []Game
+	Games []tools.Game
+}
+
+type Row struct {
+	Team     string
+	Score    int
+	IsWinner bool
 }
 
 func New(cfg Config) *Scraper {
@@ -44,7 +40,7 @@ func New(cfg Config) *Scraper {
 
 	c.OnRequest(func(r *colly.Request) {
 		log.WithField("url", r.URL).Info("Scraper: Visiting")
-		s.Games = make([]Game, 0)
+		s.Games = make([]tools.Game, 0)
 	})
 
 	c.Limit(&colly.LimitRule{
@@ -78,8 +74,8 @@ func New(cfg Config) *Scraper {
 	return s
 }
 
-func ProcessGame(e *colly.HTMLElement) (Game, error) {
-	g := Game{}
+func ProcessGame(e *colly.HTMLElement) (tools.Game, error) {
+	g := tools.Game{}
 	var err error
 	var date time.Time
 
@@ -112,12 +108,6 @@ func ProcessGame(e *colly.HTMLElement) (Game, error) {
 	return g, nil
 }
 
-type Row struct {
-	Team     string
-	Score    int
-	IsWinner bool
-}
-
 func ProcessTeamRow(e *colly.HTMLElement) Row {
 
 	r := Row{Score: -1}
@@ -145,16 +135,10 @@ func BuildURL(year, week int) string {
 	return fmt.Sprintf("https://www.pro-football-reference.com/years/%v/week_%v.htm", year, week)
 }
 
-type Week struct {
-	Year  int
-	Week  int
-	Games []Game
-}
-
-func (s *Scraper) ScrapeYear(year int) []Week {
+func (s *Scraper) ScrapeYear(year int) []tools.Week {
 	log.Debug("Entering Scrape Year Function")
 
-	var weeks []Week
+	var weeks []tools.Week
 	for week := 1; week < 19; week++ {
 
 		if s.cfg.Week != 0 && s.cfg.Week != week {
@@ -166,7 +150,7 @@ func (s *Scraper) ScrapeYear(year int) []Week {
 
 		s.Collector.Visit(url)
 
-		W := Week{Year: year, Week: week}
+		W := tools.Week{Year: year, Week: week}
 		for _, game := range s.Games {
 			logFields := log.Fields{"home": game.Home, "away": game.Away}
 			log.WithFields(logFields).Debug("Entering game")

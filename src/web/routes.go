@@ -40,6 +40,7 @@ func (s *Server) SetupRouter() {
 	nfl.HandleFunc("/", handler)
 	nfl.HandleFunc("", handler)
 	nfl.HandleFunc("/{year}", nflHandler)
+	nfl.HandleFunc("/{year}/{week}", nflHandler)
 
 	api := r.PathPrefix("/api").Subrouter()
 	api.HandleFunc("/testMatchup", testReplaceMatchup)
@@ -68,13 +69,14 @@ func testReplaceMatchup(w http.ResponseWriter, r *http.Request) {
 
 func handler(w http.ResponseWriter, r *http.Request) {
 	log.Info("Calling handler", "handler")
-	w.Write(tools.GenerateMain())
+	w.Write(tools.GenerateMain(1))
 }
 
 func nflHandler(w http.ResponseWriter, r *http.Request) {
 	log.Info("Calling handler", "nflHandler")
 
 	vars := mux.Vars(r)
+
 	games := r.URL.Query().Get("games")
 
 	val := vars["year"]
@@ -82,5 +84,5 @@ func nflHandler(w http.ResponseWriter, r *http.Request) {
 	if games != "" {
 		log.WithField("games", games).Info("Got games string")
 	}
-	w.Write(tools.GenerateMain())
+	w.Write(tools.GenerateMain(1))
 }

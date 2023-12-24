@@ -33,3 +33,25 @@ func GetAllTeams() []TeamInfo {
 	}
 	return leagueInfo.Teams
 }
+
+func GetTeamToAbbr() map[string]string {
+	var leagueInfo LeagueInfo
+
+	yamlFile, err := os.Open("./data/nfl.yaml")
+	if err != nil {
+		panic(err)
+	}
+	defer yamlFile.Close()
+
+	bytes, _ := io.ReadAll(yamlFile)
+	err = yaml.Unmarshal(bytes, &leagueInfo)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	ttabbr := make(map[string]string)
+	for _, team := range leagueInfo.Teams {
+		ttabbr[team.Name] = team.Abbr
+	}
+	return ttabbr
+}

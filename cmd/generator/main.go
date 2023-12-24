@@ -17,7 +17,7 @@ func main() {
 
 func GenerateAll(output_dir string) {
 
-	main := tools.GenerateMain()
+	main := tools.GenerateMain(10)
 	main = gohtml.FormatBytes(main)
 	output_path := filepath.Join(output_dir, "index.html")
 	err := os.WriteFile(output_path, main, 0644)

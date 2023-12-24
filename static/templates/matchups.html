@@ -1,10 +1,16 @@
 {{ define "matchups" }}
 <section id="matchups" class="flex-row matchups">
-  {{ range . }}
-  <div class="flex-small">
-    {{ template "matchup" .}}
+  <div class="flex-row">
+    {{ template "matchupControls" .Controls }}
   </div>
-  {{ end }}
+  <div class="flex-row">
+    {{ range .Matchups }}
+    <div class="flex-small">
+      {{ template "matchup" . }}
+    </div>
+    {{ end }}
+  </div>
+
   <div>
     <button hx-get="/api/testMatchup" hx-trigger="click"
             hx-target="#matchups" hx-swap="outerHTML">
@@ -22,6 +28,15 @@
   align-items: center;
 }
 </style>
+{{end}}
+
+{{ define "matchupControls" }}
+<label for="week">Week: </label>
+<select name="week" id="week">
+{{ range .ValidYears }}
+  <option value="{{ . }}">{{ . }}</option>
+{{ end}}
+</select>
 {{end}}
 
 {{ define "matchup" }}

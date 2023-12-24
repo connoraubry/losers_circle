@@ -21,10 +21,9 @@
     {{ template "header" . }}
 
     <main>
-      {{ template "graph" . }}
-      {{ template "matchups" .Matchups }}
+      {{ template "graph" .Graph }}
+      {{ template "matchups" .MatchupSection }}
     </main>
-    {{ template "test" . }}
 
     {{ template "footer" . }}
   </body>  
