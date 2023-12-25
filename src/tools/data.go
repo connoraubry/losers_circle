@@ -7,7 +7,8 @@ import (
 
 func matchupSelection(week Week) MatchupSection {
 	ms := MatchupSection{}
-	ms.Controls.ValidYears = getValidWeeks()
+	ms.Controls.ValidWeeks = getValidWeeks()
+	ms.Controls.Week = week.Week
 
 	teamToAbbr := GetTeamToAbbr()
 
@@ -27,7 +28,7 @@ func matchupSelection(week Week) MatchupSection {
 
 func dummyMatchupSection() MatchupSection {
 	ms := MatchupSection{}
-	ms.Controls.ValidYears = getValidWeeks()
+	ms.Controls.ValidWeeks = getValidWeeks()
 	ms.Matchups = dummyMatchups()
 	return ms
 }
@@ -59,11 +60,11 @@ func dummyGraph() Graph {
 	g.GraphString = teamString
 	return g
 }
-func getValidWeeks() []string {
-	var vs []string
+func getValidWeeks() []int {
+	var vs []int
 
 	for i := 1; i <= 18; i++ {
-		vs = append(vs, fmt.Sprintf("%d", i))
+		vs = append(vs, i)
 	}
 	return vs
 }

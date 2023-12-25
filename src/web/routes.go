@@ -1,7 +1,9 @@
 package web
 
 import (
+	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/connoraubry/losers_circle/src/db"
 	"github.com/connoraubry/losers_circle/src/tools"
@@ -44,6 +46,7 @@ func (s *Server) SetupRouter() {
 
 	api := r.PathPrefix("/api").Subrouter()
 	api.HandleFunc("/testMatchup", testReplaceMatchup)
+	api.HandleFunc("/test", s.GetWeekHtml)
 
 	s.Router = r
 }
@@ -57,9 +60,23 @@ func (s *Server) Run() {
 }
 
 func (s *Server) testAPI(w http.ResponseWriter, r *http.Request) {
+	fmt.Println(r.URL.Query())
 	log.Info("Handler called", "testAPI")
 	htmlTest := "<span>You clicked it!</span>"
 	w.Write([]byte(htmlTest))
+}
+
+func (s *Server) GetWeekHtml(w http.ResponseWriter, r *http.Request) {
+	log.Info("Handler called", "GetWeekHTML")
+
+	week := r.URL.Query().Get("week")
+
+	weekNum, err := strconv.Atoi(week)
+	if err != nil {
+		log.Errorf("%v", err)
+	}
+
+	w.Write(tools.GenerateWeek(weekNum))
 }
 
 func testReplaceMatchup(w http.ResponseWriter, r *http.Request) {
@@ -84,5 +101,17 @@ func nflHandler(w http.ResponseWriter, r *http.Request) {
 	if games != "" {
 		log.WithField("games", games).Info("Got games string")
 	}
-	w.Write(tools.GenerateMain(1))
+
+	var week int = 1
+	var err error
+	if vars["week"] != "" {
+		week, err = strconv.Atoi(vars["week"])
+		if err != nil {
+			log.Errorf("%v", err)
+		}
+	}
+
+	log.WithField("week", week).Info("Using week")
+
+	w.Write(tools.GenerateMain(week))
 }

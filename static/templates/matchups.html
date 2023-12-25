@@ -31,10 +31,16 @@
 {{end}}
 
 {{ define "matchupControls" }}
+{{ $p := . }}
+{{ $week := .Week }}
 <label for="week">Week: </label>
-<select name="week" id="week">
-{{ range .ValidYears }}
-  <option value="{{ . }}">{{ . }}</option>
+<select name="week" id="week" hx-get="/api/test" hx-target="#matchups">
+{{ range $i, $a := .ValidWeeks }}
+  {{ if ne $a $p.Week }}
+  <option value="{{ $a }}">{{ $a }}</option>
+  {{ else }}
+  <option value="{{ $a }}" selected>{{ $a }}</option>
+  {{ end }}
 {{ end}}
 </select>
 {{end}}

@@ -19,7 +19,8 @@ type MatchupSection struct {
 }
 
 type MatchupControls struct {
-	ValidYears []string
+	ValidWeeks []int
+	Week       int
 }
 
 type Matchup struct {

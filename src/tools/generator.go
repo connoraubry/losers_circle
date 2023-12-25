@@ -2,7 +2,6 @@ package tools
 
 import (
 	"bytes"
-	"fmt"
 	"html/template"
 
 	log "github.com/sirupsen/logrus"
@@ -13,7 +12,6 @@ func GenerateMatchups() []byte {
 	matchups := dummyMatchupSection()
 	t := template.Must(template.ParseFiles("static/templates/matchups.html"))
 	t.ExecuteTemplate(&b, "matchups", matchups)
-
 	return b.Bytes()
 }
 
@@ -35,10 +33,23 @@ func GenerateMain(week int) []byte {
 		MatchupSection: matchupSelection(w),
 		Graph:          dummyGraph(),
 	}
-	fmt.Printf("%+v", page)
 	t.ExecuteTemplate(&b, "base", page)
 
-	fmt.Println(w)
+	return b.Bytes()
+}
+
+func GenerateWeek(week int) []byte {
+	log.WithField("week", week).Info("Generating week")
+
+	var b bytes.Buffer
+	t := template.Must(template.ParseFiles("static/templates/matchups.html"))
+
+	weeks := LoadFile(2023, 0)
+	w := weeks[week-1]
+
+	matchup := matchupSelection(w)
+
+	t.ExecuteTemplate(&b, "matchups", matchup)
 
 	return b.Bytes()
 }
