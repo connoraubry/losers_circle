@@ -1,13 +1,10 @@
 #graph {
   min-height: 200px;
-}
-
-.matchupimg {
-  width: 3rem;
+  font-size: 2rem;
 }
 
 .goldborder {
-  border: 3px solid gold;
+  border: 1px solid gold;
 }
 
 .matchupimg {
@@ -52,131 +49,103 @@ div[gold-background] {
   opacity: 100%;
 }
 
-.BAL {
+span {
+  white-space: nowrap;
+}
+span .BAL {
   color: #241773;
 }
-
-.CIN {
+span .CIN {
   color: #FB4F14;
 }
-
-.CLE {
+span .CLE {
   color: #311D00;
 }
-
-.PIT {
+span .PIT {
   color: #FFB612;
 }
-
-.BUF {
+span .BUF {
   color: #00338D;
 }
-
-.MIA {
+span .MIA {
   color: #008E97;
 }
-
-.NE {
+span .NE {
   color: #002244;
 }
-
-.NYJ {
+span .NYJ {
   color: #125740;
 }
-
-.HOU {
+span .HOU {
   color: #03202F;
 }
-
-.IND {
+span .IND {
   color: #002C5F;
 }
-
-.JAX {
+span .JAX {
   color: #101820;
 }
-
-.TEN {
+span .TEN {
   color: #0C2340;
 }
-
-.DEN {
+span .DEN {
   color: #FB4F14;
 }
-
-.KC {
+span .KC {
   color: #E31837;
 }
-
-.LV {
+span .LV {
   color: #000000;
 }
-
-.LAC {
+span .LAC {
   color: #0080C6;
 }
-
-.CHI {
+span .CHI {
   color: #0B162A;
 }
-
-.DET {
+span .DET {
   color: #0076B6;
 }
-
-.GB {
+span .GB {
   color: #203731;
 }
-
-.MIN {
+span .MIN {
   color: #4F2683;
 }
-
-.DAL {
+span .DAL {
   color: #003594;
 }
-
-.NYG {
+span .NYG {
   color: #0B2265;
 }
-
-.PHI {
+span .PHI {
   color: #004C54;
 }
-
-.WAS {
+span .WAS {
   color: #5A1414;
 }
-
-.ATL {
+span .ATL {
   color: #A71930;
 }
-
-.CAR {
+span .CAR {
   color: #0085CA;
 }
-
-.NO {
+span .NO {
   color: #D3BC8D;
 }
-
-.TB {
+span .TB {
   color: #D50A0A;
 }
-
-.ARI {
+span .ARI {
   color: #97233F;
 }
-
-.LAR {
+span .LAR {
   color: #FFA300;
 }
-
-.SF {
+span .SF {
   color: #AA0000;
 }
-
-.SEA {
+span .SEA {
   color: #002244;
 }
 

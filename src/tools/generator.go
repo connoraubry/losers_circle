@@ -15,13 +15,13 @@ func GenerateMatchups() []byte {
 	return b.Bytes()
 }
 
-func GenerateMain(week int) []byte {
+func GenerateMain(year, week int) []byte {
 	log.WithField("week", week).Info("Generating main file")
 
 	var b bytes.Buffer
 	t := template.Must(template.ParseGlob("static/templates/*.html"))
 
-	weeks := LoadFile(2023, 0)
+	weeks := LoadFile(year, 0)
 	w := weeks[week-1]
 
 	log.WithField("weeksLen", len(weeks)).Info("Generating main page")
@@ -33,7 +33,7 @@ func GenerateMain(week int) []byte {
 		},
 		Title:          "Circle of Suck",
 		MatchupSection: matchupSelection(w),
-		Graph:          getGraph(weeks[:week]),
+		Graph:          GetGraph(year, week, weeks),
 	}
 	t.ExecuteTemplate(&b, "base", page)
 

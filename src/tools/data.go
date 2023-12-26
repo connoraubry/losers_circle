@@ -13,6 +13,7 @@ func matchupSelection(week Week) MatchupSection {
 	ms := MatchupSection{}
 	ms.Controls.ValidWeeks = getValidWeeks()
 	ms.Controls.Week = week.Week
+	ms.Controls.Year = week.Year
 
 	teamToAbbr := GetTeamToAbbr()
 
@@ -52,8 +53,9 @@ func dummyMatchups() []Matchup {
 	return matchups
 }
 
-func getGraph(season []Week) HTMLGraph {
-	log.Info("Entering getGraph")
+func GetLongestCycle(season []Week) []string {
+	log.Info("Entering GetLongestCycle")
+
 	gg := graph.New()
 
 	for _, week := range season {
@@ -80,33 +82,48 @@ func getGraph(season []Week) HTMLGraph {
 			longestCycle = cycle
 		}
 	}
+	return longestCycle
+}
 
+func GetGraph(year, week int, season []Week) HTMLGraph {
+	log.Info("Entering GetGraph")
+
+	longestCycle := LoadLongestCycle2(year, week)
+
+	// longestCycle = GetLongestCycle(season[:week])
+	return CycleToHTMLGraph(longestCycle)
+}
+func CycleToHTMLGraph(longestCycle []string) HTMLGraph {
+	log.Debug("Entering CycleToHTMLGraph")
 	teamToAbbr := GetTeamToAbbr()
-
 	teamString := ""
+	stFmt := "<span><span class='%s'>%s</span> ></span> "
+
 	if len(longestCycle) > 0 {
 		for _, name := range longestCycle {
-			teamString = teamString + fmt.Sprintf("<span class='%s'>%s</span> > ", teamToAbbr[name], name)
+			teamString = teamString + fmt.Sprintf(stFmt, teamToAbbr[name], name)
 		}
-		teamString = teamString + fmt.Sprintf("<span class='%s'>%s</span> > ", teamToAbbr[longestCycle[0]], longestCycle[0])
+		teamString = teamString + fmt.Sprintf("<span class='%s'>%s</span>", teamToAbbr[longestCycle[0]], longestCycle[0])
+	} else {
+		teamString = "No cycles found!"
 	}
 
 	return HTMLGraph{GraphString: template.HTML(teamString)}
 }
 
-func dummyGraph() HTMLGraph {
-	g := HTMLGraph{}
+// func dummyGraph() HTMLGraph {
+// 	g := HTMLGraph{}
 
-	teams := GetAllTeams()
-	rand.Shuffle(len(teams), func(i, j int) { teams[i], teams[j] = teams[j], teams[i] })
-	teamString := ""
-	for i := 0; i < len(teams); i++ {
-		teamString = teamString + fmt.Sprintf("%s > ", teams[i].Name)
-	}
-	teamString = teamString + teams[0].Name
-	g.GraphString = template.HTML(teamString)
-	return g
-}
+// 	teams := GetAllTeams()
+// 	rand.Shuffle(len(teams), func(i, j int) { teams[i], teams[j] = teams[j], teams[i] })
+// 	teamString := ""
+// 	for i := 0; i < len(teams); i++ {
+// 		teamString = teamString + fmt.Sprintf("%s > ", teams[i].Name)
+// 	}
+// 	teamString = teamString + teams[0].Name
+// 	g.GraphString = template.HTML(teamString)
+// 	return g
+// }
 
 func getValidWeeks() []int {
 	var vs []int

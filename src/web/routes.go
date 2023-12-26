@@ -35,12 +35,12 @@ func (s *Server) SetupRouter() {
 	r.PathPrefix("/static").Handler(static)
 
 	//Static flies
-	r.HandleFunc("/", handler)
+	r.HandleFunc("/", nflHandler)
 	r.HandleFunc("/test", s.testAPI)
 	//r.HandleFunc("/{LEAGUE}", handleLeague)
 	nfl := r.PathPrefix("/nfl").Subrouter()
-	nfl.HandleFunc("/", handler)
-	nfl.HandleFunc("", handler)
+	nfl.HandleFunc("/", nflHandler)
+	nfl.HandleFunc("", nflHandler)
 	nfl.HandleFunc("/{year}", nflHandler)
 	nfl.HandleFunc("/{year}/{week}", nflHandler)
 
@@ -84,11 +84,6 @@ func testReplaceMatchup(w http.ResponseWriter, r *http.Request) {
 	w.Write(tools.GenerateMatchups())
 }
 
-func handler(w http.ResponseWriter, r *http.Request) {
-	log.Info("Calling handler", "handler")
-	w.Write(tools.GenerateMain(5))
-}
-
 func nflHandler(w http.ResponseWriter, r *http.Request) {
 	log.Info("Calling handler", "nflHandler")
 
@@ -113,5 +108,5 @@ func nflHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.WithField("week", week).Info("Using week")
 
-	w.Write(tools.GenerateMain(week))
+	w.Write(tools.GenerateMain(2023, week))
 }
