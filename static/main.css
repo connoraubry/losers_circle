@@ -1,3 +1,22 @@
+span .BAL {
+  color: #421423;
+}
+span .WAS {
+  color: red;
+}
+span .NYJ {
+  color: lightgreen;
+}
+span .SEA {
+  color: green;
+}
+span .DET {
+  color: blue;
+}
+span .CHI {
+  color: orange;
+}
+
 #graph {
   min-height: 400px;
 }

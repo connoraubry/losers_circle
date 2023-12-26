@@ -1,31 +1,15 @@
-/*
-header {
-  display: grid;
-  grid-template-columns: 1fr repeat(3, auto) 1fr;
-  grid-column-gap: 5px;
-  justify-items: center;
+#graph {
+  min-height: 200px;
 }
-.grid-middle {
-  grid-column-start: 2;
-}
-.grid-end {
-  margin-left: auto;
-}
-#choose{
-  max-width: 35%;
-}
-*/
-/*
-svg {
 
-  width: 100%;
-  height: 450px;
-  border: 3px solid cyan;
+.matchupimg {
+  width: 3rem;
 }
-*/
-.goldborder{
+
+.goldborder {
   border: 3px solid gold;
 }
+
 .matchupimg {
   width: 3rem;
 }
@@ -36,6 +20,7 @@ svg {
   display: inline-flex;
   flex: 300px;
 }
+
 .team {
   display: inline-block;
   min-width: 3em;
@@ -44,28 +29,155 @@ svg {
   justify-content: center;
   text-align: center;
 }
-div[gold-background]{
+
+div[gold-background] {
   background: gold;
 }
-.matchup[winner=""] > div  {
+
+.matchup[winner=""] > div {
   opacity: 80%;
 }
 
-.matchup[winner="left"]> div:first-child  {
+.matchup[winner=left] > div:first-child {
   opacity: 100%;
 }
-.matchup[winner="left"] > div:last-child {
-  /*& div > img {
-    background: blue;
-  }*/
+.matchup[winner=left] > div:last-child {
   opacity: 50%;
 }
-.matchup[winner="right"] > div:first-child {
+
+.matchup[winner=right] > div:first-child {
   opacity: 50%;
 }
-.matchup[winner="right"] > div:last-child {
+.matchup[winner=right] > div:last-child {
   opacity: 100%;
 }
-#graph {
-  min-height: 500px;
+
+.BAL {
+  color: #241773;
 }
+
+.CIN {
+  color: #FB4F14;
+}
+
+.CLE {
+  color: #311D00;
+}
+
+.PIT {
+  color: #FFB612;
+}
+
+.BUF {
+  color: #00338D;
+}
+
+.MIA {
+  color: #008E97;
+}
+
+.NE {
+  color: #002244;
+}
+
+.NYJ {
+  color: #125740;
+}
+
+.HOU {
+  color: #03202F;
+}
+
+.IND {
+  color: #002C5F;
+}
+
+.JAX {
+  color: #101820;
+}
+
+.TEN {
+  color: #0C2340;
+}
+
+.DEN {
+  color: #FB4F14;
+}
+
+.KC {
+  color: #E31837;
+}
+
+.LV {
+  color: #000000;
+}
+
+.LAC {
+  color: #0080C6;
+}
+
+.CHI {
+  color: #0B162A;
+}
+
+.DET {
+  color: #0076B6;
+}
+
+.GB {
+  color: #203731;
+}
+
+.MIN {
+  color: #4F2683;
+}
+
+.DAL {
+  color: #003594;
+}
+
+.NYG {
+  color: #0B2265;
+}
+
+.PHI {
+  color: #004C54;
+}
+
+.WAS {
+  color: #5A1414;
+}
+
+.ATL {
+  color: #A71930;
+}
+
+.CAR {
+  color: #0085CA;
+}
+
+.NO {
+  color: #D3BC8D;
+}
+
+.TB {
+  color: #D50A0A;
+}
+
+.ARI {
+  color: #97233F;
+}
+
+.LAR {
+  color: #FFA300;
+}
+
+.SF {
+  color: #AA0000;
+}
+
+.SEA {
+  color: #002244;
+}
+
+/*# sourceMappingURL=main.css.map */

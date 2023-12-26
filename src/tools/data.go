@@ -2,7 +2,11 @@ package tools
 
 import (
 	"fmt"
+	"html/template"
 	"math/rand"
+
+	"github.com/connoraubry/losers_circle/src/graph"
+	log "github.com/sirupsen/logrus"
 )
 
 func matchupSelection(week Week) MatchupSection {
@@ -47,8 +51,51 @@ func dummyMatchups() []Matchup {
 	}
 	return matchups
 }
-func dummyGraph() Graph {
-	g := Graph{}
+
+func getGraph(season []Week) HTMLGraph {
+	log.Info("Entering getGraph")
+	gg := graph.New()
+
+	for _, week := range season {
+		for _, game := range week.Games {
+
+			var cnx graph.Connection
+
+			if game.HomeScore > game.AwayScore {
+				cnx = graph.NewCnx(game.Home, game.Away)
+			} else if game.AwayScore > game.HomeScore {
+				cnx = graph.NewCnx(game.Away, game.Home)
+			}
+
+			gg.AddConnection(cnx)
+		}
+	}
+	log.Info("Evalulating Graph")
+	gg.EvaluateCycles()
+
+	log.Info("Finding Longest Cycle")
+	var longestCycle []string
+	for _, cycle := range gg.NodeToCycle {
+		if len(cycle) > len(longestCycle) {
+			longestCycle = cycle
+		}
+	}
+
+	teamToAbbr := GetTeamToAbbr()
+
+	teamString := ""
+	if len(longestCycle) > 0 {
+		for _, name := range longestCycle {
+			teamString = teamString + fmt.Sprintf("<span class='%s'>%s</span> > ", teamToAbbr[name], name)
+		}
+		teamString = teamString + fmt.Sprintf("<span class='%s'>%s</span> > ", teamToAbbr[longestCycle[0]], longestCycle[0])
+	}
+
+	return HTMLGraph{GraphString: template.HTML(teamString)}
+}
+
+func dummyGraph() HTMLGraph {
+	g := HTMLGraph{}
 
 	teams := GetAllTeams()
 	rand.Shuffle(len(teams), func(i, j int) { teams[i], teams[j] = teams[j], teams[i] })
@@ -57,9 +104,10 @@ func dummyGraph() Graph {
 		teamString = teamString + fmt.Sprintf("%s > ", teams[i].Name)
 	}
 	teamString = teamString + teams[0].Name
-	g.GraphString = teamString
+	g.GraphString = template.HTML(teamString)
 	return g
 }
+
 func getValidWeeks() []int {
 	var vs []int
 

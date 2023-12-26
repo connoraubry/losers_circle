@@ -2,7 +2,7 @@ league: NFL
 teams:
   - name: Arizona Cardinals
     abbr: ARI
-  - name: Atlanta Falcons 
+  - name: Atlanta Falcons
     abbr: ATL
   - name: Baltimore Ravens
     abbr: BAL

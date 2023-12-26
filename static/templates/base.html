@@ -14,7 +14,8 @@
     <link rel="stylesheet" type="text/css" href="/static/css/main.css" />
 
     <!-- HTMX -->
-    <script src="https://unpkg.com/htmx.org@1.9.8" integrity="sha384-rgjA7mptc2ETQqXoYC3/zJvkU7K/aP44Y+z7xQuJiVnB/422P/Ak+F/AqFR7E4Wr" crossorigin="anonymous"></script>
+    <!-- <script src="https://unpkg.com/htmx.org@1.9.8" integrity="sha384-rgjA7mptc2ETQqXoYC3/zJvkU7K/aP44Y+z7xQuJiVnB/422P/Ak+F/AqFR7E4Wr" crossorigin="anonymous"></script> -->
+    <script src="static/js/htmx.min.js"></script>
     <script src="static/js/graph.js"></script>
   </head>
   <body class="medium-container">
@@ -25,9 +26,6 @@
       {{ template "matchups" .MatchupSection }}
     </main>
 
-    <div id="testID">
-      <p>test</p>
-    </div>
     {{ template "footer" . }}
   </body>  
 </html>

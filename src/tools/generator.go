@@ -24,6 +24,8 @@ func GenerateMain(week int) []byte {
 	weeks := LoadFile(2023, 0)
 	w := weeks[week-1]
 
+	log.WithField("weeksLen", len(weeks)).Info("Generating main page")
+
 	page := Whole{
 		Body: Inner{
 			Title: "Test Inner Title",
@@ -31,7 +33,7 @@ func GenerateMain(week int) []byte {
 		},
 		Title:          "Circle of Suck",
 		MatchupSection: matchupSelection(w),
-		Graph:          dummyGraph(),
+		Graph:          getGraph(weeks[:week]),
 	}
 	t.ExecuteTemplate(&b, "base", page)
 

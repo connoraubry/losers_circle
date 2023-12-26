@@ -86,7 +86,7 @@ func testReplaceMatchup(w http.ResponseWriter, r *http.Request) {
 
 func handler(w http.ResponseWriter, r *http.Request) {
 	log.Info("Calling handler", "handler")
-	w.Write(tools.GenerateMain(1))
+	w.Write(tools.GenerateMain(5))
 }
 
 func nflHandler(w http.ResponseWriter, r *http.Request) {
@@ -102,7 +102,7 @@ func nflHandler(w http.ResponseWriter, r *http.Request) {
 		log.WithField("games", games).Info("Got games string")
 	}
 
-	var week int = 1
+	var week int = 15
 	var err error
 	if vars["week"] != "" {
 		week, err = strconv.Atoi(vars["week"])

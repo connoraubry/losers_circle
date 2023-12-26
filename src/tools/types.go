@@ -1,16 +1,19 @@
 package tools
 
-import "time"
+import (
+	"html/template"
+	"time"
+)
 
 type Whole struct {
 	Title          string
 	Body           Inner
 	MatchupSection MatchupSection
-	Graph          Graph
+	Graph          HTMLGraph
 }
 
-type Graph struct {
-	GraphString string
+type HTMLGraph struct {
+	GraphString template.HTML
 }
 
 type MatchupSection struct {
