@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/connoraubry/losers_circle/src/graph"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -15,12 +16,46 @@ func EnsureDir(path string) {
 	os.MkdirAll(newpath, 0o755)
 }
 
-func GenFilename(year, week int) string {
+func GenFilename(year, week int, suffix string) string {
+
 	if week != 0 {
-		return fmt.Sprintf("data/nfl/fragment/%d/week_%02d.json", year, week)
+		return fmt.Sprintf("data/nfl/fragment/%d/week_%02d%s.json", year, week, suffix)
 	}
 
-	return fmt.Sprintf("data/nfl/full/%d.json", year)
+	return fmt.Sprintf("data/nfl/full/%d%s.json", year, suffix)
+}
+func WeeksToCnx(w []Week) []graph.Connection {
+	var cnxList []graph.Connection
+	for _, week := range w {
+		for _, game := range week.Games {
+			if game.HomeScore > game.AwayScore {
+				cnxList = append(cnxList, graph.NewCnx(game.Home, game.Away))
+			} else if game.HomeScore < game.AwayScore {
+				cnxList = append(cnxList, graph.NewCnx(game.Away, game.Home))
+			}
+		}
+	}
+	return cnxList
+}
+func SaveCnxToFile(weeks []Week, year, week int) {
+
+	cnxList := WeeksToCnx(weeks)
+
+	bytes, err := json.MarshalIndent(cnxList, "", "  ")
+	if err != nil {
+		log.Error("Error marshaling weeks:", err)
+	}
+
+	filename := GenFilename(year, week, "-cnx")
+	EnsureDir(filename)
+
+	f, err := os.Create(filename)
+	if err != nil {
+		log.Error(err)
+	}
+	defer f.Close()
+
+	f.Write(bytes)
 }
 
 func SaveFile(weeks []Week, year, week int) {
@@ -29,7 +64,7 @@ func SaveFile(weeks []Week, year, week int) {
 		log.Error("Error marshaling weeks:", err)
 	}
 
-	filename := GenFilename(year, week)
+	filename := GenFilename(year, week, "")
 	EnsureDir(filename)
 
 	f, err := os.Create(filename)
@@ -42,7 +77,7 @@ func SaveFile(weeks []Week, year, week int) {
 }
 
 func LoadFile(year, week int) []Week {
-	filename := GenFilename(year, week)
+	filename := GenFilename(year, week, "")
 
 	f, err := os.Open(filename)
 	if err != nil {

@@ -43,9 +43,11 @@ func ParseYear(year int) {
 
 	overWriteFlag := false
 	var maxLongest []string
+	lastLongest := 0
 
 	for i := 1; i < len(weeks); i++ {
-
+		log.WithFields(
+			log.Fields{"week": i, "lastLongest": lastLongest}).Info("Evaluating week.")
 		if overWriteFlag {
 			weekToCycle[fmt.Sprintf("%02d", i+1)] = maxLongest
 			continue
@@ -58,6 +60,9 @@ func ParseYear(year int) {
 			overWriteFlag = true
 			maxLongest = cycle
 		}
+
+		lastLongest = len(cycle)
+		fmt.Printf("%+v\n", cycle)
 	}
 
 	tools.SaveLongestCycles(year, weekToCycle)

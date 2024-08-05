@@ -7,3 +7,5 @@ frontend/node_modules
 .env
 
 data/*
+
+profile.out

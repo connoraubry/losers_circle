@@ -85,7 +85,8 @@ func ProcessGame(e *colly.HTMLElement) (tools.Game, error) {
 		case 0:
 			date, err = time.Parse("Jan _2, 2006", elem.Text)
 			if err != nil {
-				return
+				date = time.Now().AddDate(1, 0, 0)
+				// return
 			}
 			g.Date = date
 
@@ -103,7 +104,7 @@ func ProcessGame(e *colly.HTMLElement) (tools.Game, error) {
 	})
 
 	if err != nil {
-		return g, fmt.Errorf("Error parsing date: %v", err)
+		return g, fmt.Errorf("error parsing date: %v", err)
 	}
 	return g, nil
 }
