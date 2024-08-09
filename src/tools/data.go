@@ -5,7 +5,6 @@ import (
 	"html/template"
 	"math/rand"
 
-	"github.com/connoraubry/losers_circle/src/graph"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -51,38 +50,6 @@ func dummyMatchups() []Matchup {
 		matchups = append(matchups, newMatch)
 	}
 	return matchups
-}
-
-func GetLongestCycle(season []Week) []string {
-	log.Info("Entering GetLongestCycle")
-
-	gg := graph.New()
-
-	for _, week := range season {
-		for _, game := range week.Games {
-
-			var cnx graph.Connection
-
-			if game.HomeScore > game.AwayScore {
-				cnx = graph.NewCnx(game.Home, game.Away)
-			} else if game.AwayScore > game.HomeScore {
-				cnx = graph.NewCnx(game.Away, game.Home)
-			}
-
-			gg.AddConnection(cnx)
-		}
-	}
-	log.Info("Evalulating Graph")
-	gg.EvaluateCycles()
-
-	log.Info("Finding Longest Cycle")
-	var longestCycle []string
-	for _, cycle := range gg.NodeToCycle {
-		if len(cycle) > len(longestCycle) {
-			longestCycle = cycle
-		}
-	}
-	return longestCycle
 }
 
 func GetGraph(year, week int, season []Week) HTMLGraph {

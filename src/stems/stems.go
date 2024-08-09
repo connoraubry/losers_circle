@@ -2,10 +2,11 @@ package stems
 
 import (
 	"fmt"
+	"log"
+	"log/slog"
 	"strconv"
 
 	"github.com/connoraubry/losers_circle/src/stems/graph"
-	"github.com/sirupsen/logrus"
 )
 
 type Stems struct {
@@ -81,7 +82,7 @@ func (s *Stems) PrintLatest() {
 		}
 	}
 	if lastIdx == -1 {
-		logrus.WithField("last idx", lastIdx).Warn("Cannot print latest if no fields filled out!")
+		slog.Warn("Cannot print latest if no fields filled out!")
 	}
 	fmt.Printf("Level: %v\n", lastIdx)
 	s.Levels[lastIdx].Print()
@@ -298,8 +299,9 @@ func (s *Stems) buildLoop(Loc BitmaskLocation) []int {
 }
 
 func IdToBitmask(id int) uint32 {
-	if id > 31 || id < 0 {
+	if id > 32 || id < 1 {
+		log.Fatal("invalid id")
 		return 0
 	}
-	return 1 << id
+	return 1 << (id - 1)
 }

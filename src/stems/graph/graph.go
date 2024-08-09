@@ -3,6 +3,8 @@ package graph
 import (
 	"fmt"
 	"slices"
+
+	"github.com/connoraubry/losers_circle/src/tools"
 )
 
 type Graph struct {
@@ -123,6 +125,23 @@ func (g *Graph) RemoveConnection(start, end string) error {
 	})
 
 	return nil
+}
+
+func (g *Graph) LoadFromWeeks(weeks []tools.Week) {
+	for _, week := range weeks {
+		for _, game := range week.Games {
+			if !game.Complete {
+				continue
+			}
+
+			if game.HomeScore > game.AwayScore {
+				g.AddConnection(game.Home, game.Away)
+			} else if game.AwayScore > game.HomeScore {
+				g.AddConnection(game.Away, game.Home)
+			}
+		}
+	}
+
 }
 
 // func (g *Graph) PrintCycles() {

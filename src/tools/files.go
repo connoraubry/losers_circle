@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/connoraubry/losers_circle/src/graph"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -23,39 +22,6 @@ func GenFilename(year, week int, suffix string) string {
 	}
 
 	return fmt.Sprintf("data/nfl/full/%d%s.json", year, suffix)
-}
-func WeeksToCnx(w []Week) []graph.Connection {
-	var cnxList []graph.Connection
-	for _, week := range w {
-		for _, game := range week.Games {
-			if game.HomeScore > game.AwayScore {
-				cnxList = append(cnxList, graph.NewCnx(game.Home, game.Away))
-			} else if game.HomeScore < game.AwayScore {
-				cnxList = append(cnxList, graph.NewCnx(game.Away, game.Home))
-			}
-		}
-	}
-	return cnxList
-}
-func SaveCnxToFile(weeks []Week, year, week int) {
-
-	cnxList := WeeksToCnx(weeks)
-
-	bytes, err := json.MarshalIndent(cnxList, "", "  ")
-	if err != nil {
-		log.Error("Error marshaling weeks:", err)
-	}
-
-	filename := GenFilename(year, week, "-cnx")
-	EnsureDir(filename)
-
-	f, err := os.Create(filename)
-	if err != nil {
-		log.Error(err)
-	}
-	defer f.Close()
-
-	f.Write(bytes)
 }
 
 func SaveFile(weeks []Week, year, week int) {
