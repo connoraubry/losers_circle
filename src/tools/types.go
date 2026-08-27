@@ -39,10 +39,19 @@ type Inner struct {
 	Body  string
 }
 
+type SeasonFile struct {
+	Year  int
+	Weeks []Week
+
+	LastScraped time.Time
+}
+
 type Week struct {
 	Year  int
 	Week  int
 	Games []Game
+
+	Completed bool
 }
 
 type Game struct {

@@ -1,7 +1,8 @@
 build:
 	go build -o bin/scraper cmd/scraper/main.go
-	go build -o bin/newalg cmd/newalg/main.go
-	sass static/sass/main.scss static/css/main.css
+	go build -o bin/generator cmd/generator/main.go
+	go build -o bin/test cmd/test/main.go
+	# sass static/sass/main.scss static/css/main.css
 clean:
 	rm server
 	rm profile.out

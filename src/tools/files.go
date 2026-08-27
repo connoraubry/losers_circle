@@ -15,13 +15,57 @@ func EnsureDir(path string) {
 	os.MkdirAll(newpath, 0o755)
 }
 
-func GenFilename(year, week int, suffix string) string {
+func GenFilename2(year int) string {
+	return fmt.Sprintf("data/nfl/full/%d.json", year)
+}
 
-	if week != 0 {
-		return fmt.Sprintf("data/nfl/fragment/%d/week_%02d%s.json", year, week, suffix)
+func InitFile(year int) (*SeasonFile, error) {
+	data := &SeasonFile{
+		Year: year,
 	}
 
-	return fmt.Sprintf("data/nfl/full/%d%s.json", year, suffix)
+	for i := 1; i <= 18; i++ {
+		data.Weeks = append(data.Weeks, Week{
+			Year: year,
+			Week: i,
+		})
+	}
+	err := SaveFile2(data)
+	if err != nil {
+		return nil, fmt.Errorf("error init'ing file: %w", err)
+	}
+	return data, nil
+}
+
+func SaveFile2(data *SeasonFile) error {
+	bytes, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		return fmt.Errorf("error marshaling data: %w", err)
+	}
+
+	filename := GenFilename2(data.Year)
+	EnsureDir(filename)
+
+	f, err := os.Create(filename)
+	if err != nil {
+		return fmt.Errorf("error creating file: %w", err)
+	}
+	defer f.Close()
+
+	_, err = f.Write(bytes)
+	if err != nil {
+		return fmt.Errorf("error writing to file: %w", err)
+	}
+	return nil
+}
+
+func GenFilename(year, week int) string {
+
+	if week != 0 {
+		return fmt.Sprintf("data/nfl/fragment/%d/week_%02d.json", year, week)
+	}
+
+	return fmt.Sprintf("data/nfl/full/%d.json", year)
 }
 
 func SaveFile(weeks []Week, year, week int) {
@@ -30,7 +74,7 @@ func SaveFile(weeks []Week, year, week int) {
 		log.Error("Error marshaling weeks:", err)
 	}
 
-	filename := GenFilename(year, week, "")
+	filename := GenFilename(year, week)
 	EnsureDir(filename)
 
 	f, err := os.Create(filename)
@@ -43,7 +87,7 @@ func SaveFile(weeks []Week, year, week int) {
 }
 
 func LoadFile(year, week int) []Week {
-	filename := GenFilename(year, week, "")
+	filename := GenFilename(year, week)
 
 	f, err := os.Open(filename)
 	if err != nil {
@@ -57,6 +101,26 @@ func LoadFile(year, week int) []Week {
 	json.Unmarshal(bytes, &w)
 
 	return w
+}
+
+func LoadFile2(year int) (*SeasonFile, error) {
+	filename := GenFilename2(year)
+
+	f, err := os.Open(filename)
+	if err != nil {
+		return nil, fmt.Errorf("error opening file: %w", err)
+	}
+	defer f.Close()
+
+	var sf SeasonFile
+
+	bytes, err := io.ReadAll(f)
+	if err != nil {
+		return nil, fmt.Errorf("error reading file: %w", err)
+	}
+	json.Unmarshal(bytes, &sf)
+
+	return &sf, nil
 }
 
 func GenCycleFilename(year int) string {
@@ -83,7 +147,6 @@ func SaveLongestCycles(year int, weekToCycle map[string][]string) {
 }
 func LoadLongestCycle(year int) map[int][]string {
 	filename := GenCycleFilename(year)
-
 	f, err := os.Open(filename)
 	if err != nil {
 		log.Error(err)

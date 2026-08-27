@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"time"
 
 	"github.com/connoraubry/losers_circle/src/scraper"
 	"github.com/connoraubry/losers_circle/src/tools"
@@ -10,8 +9,11 @@ import (
 )
 
 var (
-	year = flag.Int("year", time.Now().Year(), "Year to scrape")
-	week = flag.Int("week", 0, "Week to scrape. (0 to scrape all weeks)")
+	year  = flag.Int("year", tools.DefaultYear(), "Year to scrape")
+	start = flag.Int("start", 1, "Start of range")
+	end   = flag.Int("end", 18, "Last week to scrape")
+	force = flag.Bool("force", false, "Force a re-scrape")
+	all   = flag.Bool("all", false, "Scrape all years, even if not completed")
 )
 
 func init() {
@@ -21,12 +23,26 @@ func init() {
 func main() {
 	flag.Parse()
 
-	opts := scraper.Config{
-		Week: *week,
+	//get old data
+	data, err := tools.LoadFile2(*year)
+	if err != nil {
+		var err2 error
+		data, err2 = tools.InitFile(*year)
+		if err2 != nil {
+			log.Fatal(err2)
+		}
 	}
 
-	s := scraper.New(opts)
-	weeks := s.ScrapeYear(*year)
+	opts := scraper.Config{
+		Year:  *year,
+		Start: *start,
+		End:   *end,
+		Data:  data,
+		Force: *force,
+		All:   *all,
+	}
 
-	tools.SaveFile(weeks, *year, *week)
+	updateData := scraper.Scrape(opts)
+
+	tools.SaveFile2(updateData)
 }

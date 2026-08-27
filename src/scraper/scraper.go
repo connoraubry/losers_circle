@@ -15,14 +15,21 @@ func main() {
 }
 
 type Config struct {
-	Week int
+	Year  int               //year to scrape
+	Start int               //starting week
+	End   int               //ending week
+	Data  *tools.SeasonFile //previous data (will be updated)
+
+	Force bool //re-scrape completed weeks
+	All   bool
 }
 
 type Scraper struct {
 	cfg       Config
 	Collector *colly.Collector
 
-	Games []tools.Game
+	Games      []tools.Game
+	GameErrors []error
 }
 
 type Row struct {
@@ -60,6 +67,8 @@ func New(cfg Config) *Scraper {
 	c.OnHTML("table.teams tbody", func(e *colly.HTMLElement) {
 		game, err := ProcessGame(e)
 		if err != nil {
+			s.GameErrors = append(s.GameErrors, err)
+			s.Games = append(s.Games, game)
 			return
 		}
 		s.Games = append(s.Games, game)
@@ -80,16 +89,13 @@ func ProcessGame(e *colly.HTMLElement) (tools.Game, error) {
 	var date time.Time
 
 	e.ForEach("tr", func(idx int, elem *colly.HTMLElement) {
-
 		switch idx {
 		case 0:
 			date, err = time.Parse("Jan _2, 2006", elem.Text)
 			if err != nil {
 				date = time.Now().AddDate(1, 0, 0)
-				// return
 			}
 			g.Date = date
-
 			g.Complete = time.Now().After(date)
 
 		case 1:
@@ -140,11 +146,7 @@ func (s *Scraper) ScrapeYear(year int) []tools.Week {
 	log.Debug("Entering Scrape Year Function")
 
 	var weeks []tools.Week
-	for week := 1; week < 19; week++ {
-
-		if s.cfg.Week != 0 && s.cfg.Week != week {
-			continue
-		}
+	for week := s.cfg.Start; week < s.cfg.End; week++ {
 
 		url := BuildURL(year, week)
 		log.WithField("url", url).Info("Attempting to connect to URL")
@@ -161,4 +163,49 @@ func (s *Scraper) ScrapeYear(year int) []tools.Week {
 		time.Sleep(3 * time.Second)
 	}
 	return weeks
+}
+
+func Scrape(opts Config) *tools.SeasonFile {
+
+	for week := opts.Start; week <= opts.End; week++ {
+		//week is 1 indexed, list is 0 indexed
+		existingWeek := opts.Data.Weeks[week-1]
+
+		//skip this week
+		if existingWeek.Completed && !opts.Force {
+			continue
+		}
+
+		scraper := New(opts)
+
+		url := BuildURL(opts.Year, week)
+		log.WithField("url", url).Info("Attempting to connect to URL")
+
+		//scrape the page. get all games for a week
+		scraper.Collector.Visit(url)
+
+		W := tools.Week{Year: opts.Year, Week: week}
+		for _, game := range scraper.Games {
+			logFields := log.Fields{"home": game.Home, "away": game.Away}
+			log.WithFields(logFields).Debug("Entering game")
+			W.Games = append(W.Games, game)
+		}
+		if len(scraper.GameErrors) == 0 {
+			W.Completed = true
+		}
+		opts.Data.Weeks[week-1] = W
+
+		//also, if there's game errors this should be the last week
+		//unless 'all' flag is set
+		if !opts.All && len(scraper.GameErrors) > 0 {
+			break
+		}
+
+		//don't want to overwhelm PFR
+		if week != opts.End {
+			time.Sleep(3 * time.Second)
+		}
+	}
+
+	return opts.Data
 }

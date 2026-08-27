@@ -17,6 +17,16 @@ type LeagueInfo struct {
 	Teams  []TeamInfo `json:"teams"`
 }
 
+func GetTeamsFromWeek(w Week) []string {
+	var teams []string
+
+	for _, game := range w.Games {
+		teams = append(teams, game.Away, game.Home)
+	}
+
+	return teams
+}
+
 func GetAllTeams() []TeamInfo {
 	var leagueInfo LeagueInfo
 
