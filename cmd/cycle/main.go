@@ -46,10 +46,7 @@ func printLongestCycles(w *os.File, s nfldata.Season, progress bool) {
 		byTeam = g.LongestByTeam()
 	}
 
-	teams := make([]string, 0, len(byTeam))
-	for t := range byTeam {
-		teams = append(teams, t)
-	}
+	teams := append([]string(nil), s.Teams...)
 	sort.Slice(teams, func(i, j int) bool {
 		li, lj := len(byTeam[teams[i]]), len(byTeam[teams[j]])
 		if li != lj {
@@ -59,12 +56,12 @@ func printLongestCycles(w *os.File, s nfldata.Season, progress bool) {
 	})
 
 	fmt.Fprintln(w, "longest cycles:")
-	if len(teams) == 0 {
-		fmt.Fprintln(w, "  none found")
-		return
-	}
 	for _, t := range teams {
 		c := byTeam[t]
+		if c == nil {
+			fmt.Fprintf(w, "  %-4s (0): none\n", t)
+			continue
+		}
 		fmt.Fprintf(w, "  %-4s (%d): %s\n", t, len(c), strings.Join(c, " -> "))
 	}
 }
