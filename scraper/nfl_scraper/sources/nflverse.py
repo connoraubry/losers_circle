@@ -31,6 +31,8 @@ def fetch_games(season: int, include_postseason: bool = False, refresh: bool = F
             continue
         if row["game_type"] != "REG" and not include_postseason:
             continue
+        home_score = int(row["home_score"]) if row["home_score"] else None
+        away_score = int(row["away_score"]) if row["away_score"] else None
         games.append(
             Game(
                 season=season,
@@ -40,9 +42,11 @@ def fetch_games(season: int, include_postseason: bool = False, refresh: bool = F
                 time=row["gametime"] or None,
                 home_team=row["home_team"],
                 away_team=row["away_team"],
-                home_score=int(row["home_score"]) if row["home_score"] else None,
-                away_score=int(row["away_score"]) if row["away_score"] else None,
-                status="final",
+                home_score=home_score,
+                away_score=away_score,
+                # nflverse's games.csv doesn't distinguish "in progress"
+                # from "not yet played" - both just have empty scores.
+                status="final" if home_score is not None and away_score is not None else "scheduled",
             )
         )
     return games
