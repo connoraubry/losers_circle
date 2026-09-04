@@ -19,6 +19,7 @@ func main() {
 	season := flag.Int("season", defaultSeason(time.Now()), "NFL season year to load (alias: -year)")
 	flag.IntVar(season, "year", *season, "NFL season year to load (alias: -season)")
 	maxWeek := flag.Int("week", 0, "only include games through this week (0 = all weeks)")
+	progress := flag.Bool("progress", false, "print elapsed time and nodes analyzed while solving")
 	flag.Parse()
 
 	path := filepath.Join(*dir, fmt.Sprintf("%d.json", *season))
@@ -30,14 +31,20 @@ func main() {
 	s = nfldata.FilterMaxWeek(s, *maxWeek)
 
 	nfldata.PrintSeasonStats(os.Stdout, s)
-	printLongestCycles(os.Stdout, s)
+	printLongestCycles(os.Stdout, s, *progress)
 }
 
 // printLongestCycles prints each team's longest cycle (a loop of teams
 // where each beat the next, and the last beat the first), longest first.
-func printLongestCycles(w *os.File, s nfldata.Season) {
+func printLongestCycles(w *os.File, s nfldata.Season, progress bool) {
 	g := cycle.Build(s)
-	byTeam := g.LongestByTeam()
+
+	var byTeam map[string][]string
+	if progress {
+		byTeam = g.LongestByTeamProgress(os.Stderr, time.Second)
+	} else {
+		byTeam = g.LongestByTeam()
+	}
 
 	teams := make([]string, 0, len(byTeam))
 	for t := range byTeam {

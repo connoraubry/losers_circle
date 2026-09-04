@@ -4,7 +4,11 @@
 package cycle
 
 import (
+	"fmt"
+	"io"
 	"math/bits"
+	"sync/atomic"
+	"time"
 
 	"losers_circle/internal/nfldata"
 )
@@ -68,6 +72,13 @@ func Build(s nfldata.Season) *Graph {
 // team abbreviations (team beat the next, ..., the last beat team). It
 // returns nil if team is in no cycle.
 func (g *Graph) Longest(team string) []string {
+	return g.longest(team, nil)
+}
+
+// longest is Longest's implementation. If visits is non-nil, it's
+// incremented once per node the search visits, for progress reporting; the
+// extra nil check costs nothing measurable when visits is nil.
+func (g *Graph) longest(team string, visits *int64) []string {
 	start, ok := g.index[team]
 	if !ok {
 		return nil
@@ -90,6 +101,9 @@ func (g *Graph) Longest(team string) []string {
 
 	var dfs func(cur int, visited uint32, path []int)
 	dfs = func(cur int, visited uint32, path []int) {
+		if visits != nil {
+			atomic.AddInt64(visits, 1)
+		}
 		// Even using every unvisited team in this component, we
 		// couldn't beat the best cycle found so far.
 		if len(path)+(n-bits.OnesCount32(visited)) <= len(best) {
@@ -135,5 +149,39 @@ func (g *Graph) LongestByTeam() map[string][]string {
 			result[t] = c
 		}
 	}
+	return result
+}
+
+// LongestByTeamProgress behaves like LongestByTeam, but periodically writes
+// elapsed time and the number of search nodes visited so far to w (useful
+// for long-running searches on larger graphs). A final summary line is
+// always written when the search completes.
+func (g *Graph) LongestByTeamProgress(w io.Writer, interval time.Duration) map[string][]string {
+	var visits int64
+	start := time.Now()
+
+	done := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				fmt.Fprintf(w, "  ...%.1fs elapsed, %d nodes analyzed\n", time.Since(start).Seconds(), atomic.LoadInt64(&visits))
+			case <-done:
+				return
+			}
+		}
+	}()
+
+	result := make(map[string][]string)
+	for _, t := range g.teams {
+		if c := g.longest(t, &visits); c != nil {
+			result[t] = c
+		}
+	}
+	close(done)
+
+	fmt.Fprintf(w, "  done in %.1fs, %d nodes analyzed\n", time.Since(start).Seconds(), atomic.LoadInt64(&visits))
 	return result
 }
