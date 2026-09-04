@@ -51,6 +51,32 @@ func TestLongestNoCycle(t *testing.T) {
 	}
 }
 
+// TestLongestBridgeNode covers a team that has both a win and a loss (so
+// naive in/out-degree pruning wouldn't remove it) but still isn't part of
+// any cycle, because it only bridges between two separate cycles: A<->B
+// and C<->D, joined by A->X->C. Only SCC-based pruning catches this.
+func TestLongestBridgeNode(t *testing.T) {
+	s := nfldata.Season{
+		Teams: []string{"A", "B", "C", "D", "X"},
+		Games: []nfldata.Game{
+			game("A", "B"),
+			game("B", "A"),
+			game("C", "D"),
+			game("D", "C"),
+			game("A", "X"),
+			game("X", "C"),
+		},
+	}
+	g := Build(s)
+
+	if got := g.Longest("X"); got != nil {
+		t.Fatalf("Longest(X) = %v, want nil (X only bridges two cycles)", got)
+	}
+	if got := g.Longest("A"); len(got) != 2 {
+		t.Fatalf("Longest(A) = %v, want a 2-team cycle", got)
+	}
+}
+
 func TestLongestSplitSeriesTwoCycle(t *testing.T) {
 	s := nfldata.Season{
 		Teams: []string{"A", "B"},

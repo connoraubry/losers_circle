@@ -15,6 +15,9 @@ type Graph struct {
 	teams []string
 	index map[string]int
 	adj   [][]int // adj[i] = distinct indices j such that i beat j
+
+	sccID   []int // sccID[i] = strongly connected component id of team i
+	sccSize []int // sccSize[c] = number of teams in component c
 }
 
 // Build constructs a Graph from a season's played, non-tie games. A split
@@ -55,6 +58,9 @@ func Build(s nfldata.Season) *Graph {
 		g.adj[wi] = append(g.adj[wi], li)
 	}
 
+	g.sccID = tarjanSCC(g.adj)
+	g.sccSize = sccSizes(g.sccID)
+
 	return g
 }
 
@@ -67,7 +73,15 @@ func (g *Graph) Longest(team string) []string {
 		return nil
 	}
 
-	n := len(g.teams)
+	// A team can only be in a cycle if it shares a strongly connected
+	// component with at least one other team; a singleton component means
+	// no path leads back to it.
+	scc := g.sccID[start]
+	n := g.sccSize[scc]
+	if n < 2 {
+		return nil
+	}
+
 	var best []int
 
 	visited := uint32(1) << start
@@ -76,12 +90,17 @@ func (g *Graph) Longest(team string) []string {
 
 	var dfs func(cur int, visited uint32, path []int)
 	dfs = func(cur int, visited uint32, path []int) {
-		// Even using every unvisited team, we couldn't beat the best
-		// cycle found so far, so this branch can't win.
+		// Even using every unvisited team in this component, we
+		// couldn't beat the best cycle found so far.
 		if len(path)+(n-bits.OnesCount32(visited)) <= len(best) {
 			return
 		}
 		for _, nb := range g.adj[cur] {
+			// Cross-component edges can never close back into a
+			// cycle with start.
+			if g.sccID[nb] != scc {
+				continue
+			}
 			if nb == start {
 				if len(path) > len(best) {
 					best = append([]int(nil), path...)
