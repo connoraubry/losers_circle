@@ -15,6 +15,7 @@ func main() {
 	dir := flag.String("dir", "data", "directory containing season JSON files")
 	season := flag.Int("season", defaultSeason(time.Now()), "NFL season year to load (alias: -year)")
 	flag.IntVar(season, "year", *season, "NFL season year to load (alias: -season)")
+	maxWeek := flag.Int("week", 0, "only include games through this week (0 = all weeks)")
 	flag.Parse()
 
 	path := filepath.Join(*dir, fmt.Sprintf("%d.json", *season))
@@ -23,6 +24,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
+	s = nfldata.FilterMaxWeek(s, *maxWeek)
 
 	nfldata.PrintSeasonStats(os.Stdout, s)
 }

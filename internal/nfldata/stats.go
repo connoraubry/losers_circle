@@ -5,6 +5,22 @@ import (
 	"io"
 )
 
+// FilterMaxWeek returns a copy of s containing only games with Week <=
+// maxWeek. A maxWeek of 0 or less returns s unchanged.
+func FilterMaxWeek(s Season, maxWeek int) Season {
+	if maxWeek <= 0 {
+		return s
+	}
+	filtered := s
+	filtered.Games = nil
+	for _, g := range s.Games {
+		if g.Week <= maxWeek {
+			filtered.Games = append(filtered.Games, g)
+		}
+	}
+	return filtered
+}
+
 // PrintSeasonStats writes summary statistics about a season to w.
 func PrintSeasonStats(w io.Writer, s Season) {
 	var played, unplayed, ties int
