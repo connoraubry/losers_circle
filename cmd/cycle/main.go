@@ -6,8 +6,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"time"
 
+	"losers_circle/internal/cycle"
 	"losers_circle/internal/nfldata"
 )
 
@@ -27,6 +30,36 @@ func main() {
 	s = nfldata.FilterMaxWeek(s, *maxWeek)
 
 	nfldata.PrintSeasonStats(os.Stdout, s)
+	printLongestCycles(os.Stdout, s)
+}
+
+// printLongestCycles prints each team's longest cycle (a loop of teams
+// where each beat the next, and the last beat the first), longest first.
+func printLongestCycles(w *os.File, s nfldata.Season) {
+	g := cycle.Build(s)
+	byTeam := g.LongestByTeam()
+
+	teams := make([]string, 0, len(byTeam))
+	for t := range byTeam {
+		teams = append(teams, t)
+	}
+	sort.Slice(teams, func(i, j int) bool {
+		li, lj := len(byTeam[teams[i]]), len(byTeam[teams[j]])
+		if li != lj {
+			return li > lj
+		}
+		return teams[i] < teams[j]
+	})
+
+	fmt.Fprintln(w, "longest cycles:")
+	if len(teams) == 0 {
+		fmt.Fprintln(w, "  none found")
+		return
+	}
+	for _, t := range teams {
+		c := byTeam[t]
+		fmt.Fprintf(w, "  %-4s (%d): %s\n", t, len(c), strings.Join(c, " -> "))
+	}
 }
 
 // defaultSeason returns the current NFL season year for the given time: the
