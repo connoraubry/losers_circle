@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"losers_circle/internal/cycle"
+	"losers_circle/internal/cyclesvg"
 	"losers_circle/internal/nfldata"
 )
 
@@ -22,6 +23,8 @@ func main() {
 	progress := flag.Bool("progress", false, "print elapsed time and nodes analyzed while solving")
 	upcoming := flag.Bool("upcoming", false, "check whether results in the current and next week's remaining games would create a cycle")
 	sweep := flag.Bool("sweep", false, "exhaustively check every combination of results in the next full week for new cycles")
+	graphSVG := flag.Bool("graph", false, "write the full win/loss graph to graph.svg")
+	cycleGraphSVG := flag.Bool("cycle-graph", false, "write only the teams/edges on an existing cycle to cycles.svg")
 	flag.Parse()
 
 	if *upcoming && *maxWeek > 0 {
@@ -53,6 +56,24 @@ func main() {
 	}
 	if *sweep {
 		printSweep(os.Stdout, g, nextWeekGames)
+	}
+
+	if *graphSVG || *cycleGraphSVG {
+		byTeam := g.LongestByTeam()
+		if *graphSVG {
+			if err := cyclesvg.Render("graph.svg", g, byTeam, cyclesvg.Options{}); err != nil {
+				fmt.Fprintln(os.Stderr, "error writing graph.svg:", err)
+				os.Exit(1)
+			}
+			fmt.Fprintln(os.Stdout, "\nwrote graph.svg")
+		}
+		if *cycleGraphSVG {
+			if err := cyclesvg.Render("cycles.svg", g, byTeam, cyclesvg.Options{OnlyCycles: true}); err != nil {
+				fmt.Fprintln(os.Stderr, "error writing cycles.svg:", err)
+				os.Exit(1)
+			}
+			fmt.Fprintln(os.Stdout, "wrote cycles.svg")
+		}
 	}
 }
 
