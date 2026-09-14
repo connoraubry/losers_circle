@@ -140,6 +140,98 @@ func (g *Graph) longest(team string, visits *int64) []string {
 	return result
 }
 
+// ShortestPath returns the shortest directed path from `from` to `to`
+// (inclusive of both endpoints), or nil if no path exists.
+func (g *Graph) ShortestPath(from, to string) []string {
+	fi, ok := g.index[from]
+	if !ok {
+		return nil
+	}
+	ti, ok := g.index[to]
+	if !ok {
+		return nil
+	}
+
+	prev := make([]int, len(g.teams))
+	for i := range prev {
+		prev[i] = -1
+	}
+	visited := make([]bool, len(g.teams))
+	visited[fi] = true
+	queue := []int{fi}
+	for len(queue) > 0 {
+		cur := queue[0]
+		queue = queue[1:]
+		if cur == ti {
+			break
+		}
+		for _, nb := range g.adj[cur] {
+			if visited[nb] {
+				continue
+			}
+			visited[nb] = true
+			prev[nb] = cur
+			queue = append(queue, nb)
+		}
+	}
+	if !visited[ti] {
+		return nil
+	}
+
+	var path []int
+	for at := ti; at != -1; at = prev[at] {
+		path = append(path, at)
+		if at == fi {
+			break
+		}
+	}
+	for i, j := 0, len(path)-1; i < j; i, j = i+1, j-1 {
+		path[i], path[j] = path[j], path[i]
+	}
+	result := make([]string, len(path))
+	for i, idx := range path {
+		result[i] = g.teams[idx]
+	}
+	return result
+}
+
+// PotentialCycle describes an unplayed game where Winner beating Loser
+// would create a new cycle in the win graph. Cycle is the resulting loop
+// (Loser beat the next, ..., the last beat Loser), matching the ordering
+// convention of Longest.
+type PotentialCycle struct {
+	Game   nfldata.Game
+	Winner string
+	Loser  string
+	Cycle  []string
+}
+
+// PotentialCycles checks each unplayed game in games against g and returns
+// one PotentialCycle per possible outcome (home win, away win) that would
+// close a new cycle: a result W-beats-L creates a cycle exactly when a path
+// L -> ... -> W already exists in g, since the new edge W->L closes it.
+// Already-played games are skipped.
+func (g *Graph) PotentialCycles(games []nfldata.Game) []PotentialCycle {
+	var result []PotentialCycle
+	for _, game := range games {
+		if game.Played() {
+			continue
+		}
+		for _, outcome := range [2][2]string{
+			{game.HomeTeam, game.AwayTeam},
+			{game.AwayTeam, game.HomeTeam},
+		} {
+			winner, loser := outcome[0], outcome[1]
+			path := g.ShortestPath(loser, winner)
+			if path == nil {
+				continue
+			}
+			result = append(result, PotentialCycle{Game: game, Winner: winner, Loser: loser, Cycle: path})
+		}
+	}
+	return result
+}
+
 // LongestByTeam returns each team's longest cycle (as returned by Longest),
 // keyed by team abbreviation. Teams with no cycle are omitted.
 func (g *Graph) LongestByTeam() map[string][]string {
