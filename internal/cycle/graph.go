@@ -74,18 +74,37 @@ func Build(s nfldata.Season) *Graph {
 // team abbreviations (team beat the next, ..., the last beat team). It
 // returns nil if team is in no cycle.
 func (g *Graph) Longest(team string) []string {
-	return g.longest(team, nil)
-}
-
-// longest is Longest's implementation. If visits is non-nil, it's
-// incremented once per node the search visits, for progress reporting; the
-// extra nil check costs nothing measurable when visits is nil.
-func (g *Graph) longest(team string, visits *int64) []string {
 	start, ok := g.index[team]
 	if !ok {
 		return nil
 	}
+	best := g.longestIdx(start, nil, nil)
+	if best == nil {
+		return nil
+	}
+	return g.namesOf(best)
+}
 
+// namesOf converts team indices to their abbreviations.
+func (g *Graph) namesOf(idx []int) []string {
+	result := make([]string, len(idx))
+	for i, v := range idx {
+		result[i] = g.teams[v]
+	}
+	return result
+}
+
+// longestIdx returns the largest cycle containing team index start, as an
+// ordered list of team indices, or nil if start is in no cycle. If seed is
+// non-nil, it must already be a valid cycle through start (typically
+// another team's cached longest cycle, rotated to begin at start); it's
+// used as the search's initial lower bound, both to prune faster and so
+// that, when nothing longer exists, the result converges exactly onto seed
+// rather than an arbitrary same-length alternative. If visits is non-nil,
+// it's incremented once per node the search visits, for progress
+// reporting; the extra nil check costs nothing measurable when visits is
+// nil.
+func (g *Graph) longestIdx(start int, seed []int, visits *int64) []int {
 	// A team can only be in a cycle if it shares a strongly connected
 	// component with at least one other team; a singleton component means
 	// no path leads back to it.
@@ -95,7 +114,7 @@ func (g *Graph) longest(team string, visits *int64) []string {
 		return nil
 	}
 
-	var best []int
+	best := append([]int(nil), seed...)
 
 	visited := uint32(1) << start
 	path := make([]int, 0, n)
@@ -132,14 +151,7 @@ func (g *Graph) longest(team string, visits *int64) []string {
 	}
 	dfs(start, visited, path)
 
-	if best == nil {
-		return nil
-	}
-	result := make([]string, len(best))
-	for i, idx := range best {
-		result[i] = g.teams[idx]
-	}
-	return result
+	return best
 }
 
 // Teams returns the season's team abbreviations.
@@ -485,14 +497,17 @@ func containsInt(s []int, v int) bool {
 
 // LongestByTeam returns each team's longest cycle (as returned by Longest),
 // keyed by team abbreviation. Teams with no cycle are omitted.
+//
+// Teams sharing a strongly connected component reuse and warm-start each
+// other's searches (see longestIdx): once a cycle is found that spans an
+// entire component, that's provably the longest possible cycle in it (a
+// simple cycle can't exceed its component's size), so every team on it is
+// resolved without any further search. Teams on a shorter shared cycle
+// still warm-start from it, pruning faster and converging on that same
+// cycle when nothing longer exists for them, rather than an arbitrary
+// same-length alternative.
 func (g *Graph) LongestByTeam() map[string][]string {
-	result := make(map[string][]string)
-	for _, t := range g.teams {
-		if c := g.Longest(t); c != nil {
-			result[t] = c
-		}
-	}
-	return result
+	return g.longestByTeam(nil)
 }
 
 // LongestByTeamProgress behaves like LongestByTeam, but periodically writes
@@ -517,14 +532,84 @@ func (g *Graph) LongestByTeamProgress(w io.Writer, interval time.Duration) map[s
 		}
 	}()
 
-	result := make(map[string][]string)
-	for _, t := range g.teams {
-		if c := g.longest(t, &visits); c != nil {
-			result[t] = c
-		}
-	}
+	result := g.longestByTeam(&visits)
 	close(done)
 
 	fmt.Fprintf(w, "  done in %.1fs, %d nodes analyzed\n", time.Since(start).Seconds(), atomic.LoadInt64(&visits))
 	return result
+}
+
+// sccCycleCache tracks, for one strongly connected component, the longest
+// cycle found so far among its teams, and whether that cycle has been
+// proven maximal for the whole component (its length equals the
+// component's size).
+type sccCycleCache struct {
+	best  []int
+	final bool
+}
+
+// longestByTeam is LongestByTeam's implementation; see its docs for the
+// per-component reuse strategy. visits is optional, as in longestIdx.
+func (g *Graph) longestByTeam(visits *int64) map[string][]string {
+	result := make(map[string][]string)
+	caches := make(map[int]*sccCycleCache)
+
+	for _, t := range g.teams {
+		start, ok := g.index[t]
+		if !ok {
+			continue
+		}
+		scc := g.sccID[start]
+		n := g.sccSize[scc]
+		if n < 2 {
+			continue
+		}
+
+		cache := caches[scc]
+		if cache == nil {
+			cache = &sccCycleCache{}
+			caches[scc] = cache
+		}
+
+		if cache.final && containsInt(cache.best, start) {
+			result[t] = g.namesOf(rotateTo(cache.best, start))
+			continue
+		}
+
+		var seed []int
+		if containsInt(cache.best, start) {
+			seed = rotateTo(cache.best, start)
+		}
+
+		best := g.longestIdx(start, seed, visits)
+		if best == nil {
+			continue
+		}
+		result[t] = g.namesOf(best)
+
+		if len(best) > len(cache.best) {
+			cache.best = best
+			if len(best) == n {
+				cache.final = true
+			}
+		}
+	}
+	return result
+}
+
+// rotateTo rotates cycle, a closed loop of team indices, so it begins at
+// start, which must already be a member.
+func rotateTo(cycle []int, start int) []int {
+	offset := 0
+	for i, v := range cycle {
+		if v == start {
+			offset = i
+			break
+		}
+	}
+	rotated := make([]int, len(cycle))
+	for i := range cycle {
+		rotated[i] = cycle[(offset+i)%len(cycle)]
+	}
+	return rotated
 }

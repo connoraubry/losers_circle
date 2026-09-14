@@ -2,6 +2,7 @@ package cycle
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"losers_circle/internal/nfldata"
@@ -92,6 +93,102 @@ func TestLongestSplitSeriesTwoCycle(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("Longest(A) = %v, want %v", got, want)
 	}
+}
+
+// TestLongestByTeamConvergesSharedCycle covers a 4-team Hamiltonian cycle
+// (A->B->C->D->A, spanning its whole component): every team on it must
+// resolve to the exact same loop, just rotated to start at itself, rather
+// than an independently-discovered (but coincidentally same-length) cycle.
+func TestLongestByTeamConvergesSharedCycle(t *testing.T) {
+	s := nfldata.Season{
+		Teams: []string{"A", "B", "C", "D"},
+		Games: []nfldata.Game{
+			game("A", "B"),
+			game("B", "C"),
+			game("C", "D"),
+			game("D", "A"),
+		},
+	}
+	g := Build(s)
+
+	byTeam := g.LongestByTeam()
+	full := []string{"A", "B", "C", "D"}
+	for i, team := range full {
+		want := append(append([]string(nil), full[i:]...), full[:i]...)
+		if got := byTeam[team]; !reflect.DeepEqual(got, want) {
+			t.Fatalf("LongestByTeam()[%s] = %v, want %v (same shared cycle, rotated)", team, got, want)
+		}
+	}
+}
+
+// TestLongestByTeamKeepsDistinctOverlappingCycle covers a 5-team component
+// with two distinct 4-team cycles sharing three members (A-B-C-D and
+// B-C-D-E): B, C, D should converge on whichever cycle is found first,
+// while A and E - each in only one of the two cycles - keep their own
+// distinct loop rather than being merged into the other's.
+func TestLongestByTeamKeepsDistinctOverlappingCycle(t *testing.T) {
+	s := nfldata.Season{
+		Teams: []string{"A", "B", "C", "D", "E"},
+		Games: []nfldata.Game{
+			game("A", "B"),
+			game("B", "C"),
+			game("C", "D"),
+			game("D", "A"),
+			game("D", "E"),
+			game("E", "B"),
+		},
+	}
+	g := Build(s)
+
+	byTeam := g.LongestByTeam()
+	for _, team := range []string{"A", "B", "C", "D", "E"} {
+		if len(byTeam[team]) != 4 {
+			t.Fatalf("LongestByTeam()[%s] = %v, want a 4-team cycle", team, byTeam[team])
+		}
+	}
+
+	anchor := byTeam["B"][0]
+	shared := strings.Join(byTeam["B"], ",")
+	for _, team := range []string{"C", "D"} {
+		if got := strings.Join(rotateStrings(byTeam[team], anchor), ","); got != shared {
+			t.Fatalf("B, C, D should share the same cycle: B=%v %s=%v", byTeam["B"], team, byTeam[team])
+		}
+	}
+
+	// A and E are each in only one of the two overlapping cycles, so
+	// exactly one of them must differ from the shared B/C/D cycle.
+	aIn := contains(byTeam["A"], "E")
+	eIn := contains(byTeam["E"], "A")
+	if aIn || eIn {
+		t.Fatalf("A and E belong to different cycles and shouldn't appear in each other's: A=%v E=%v", byTeam["A"], byTeam["E"])
+	}
+}
+
+// rotateStrings rotates cycle to start at team, for comparing cycles that
+// are the same loop but reported starting from different members.
+func rotateStrings(cycle []string, team string) []string {
+	offset := 0
+	for i, t := range cycle {
+		if t == team {
+			offset = i
+			break
+		}
+	}
+	rotated := make([]string, len(cycle))
+	for i := range cycle {
+		rotated[i] = cycle[(offset+i)%len(cycle)]
+	}
+	return rotated
+}
+
+// contains reports whether v appears in s.
+func contains(s []string, v string) bool {
+	for _, x := range s {
+		if x == v {
+			return true
+		}
+	}
+	return false
 }
 
 func unplayed(home, away string, week int) nfldata.Game {
