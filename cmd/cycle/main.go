@@ -21,10 +21,15 @@ func main() {
 	maxWeek := flag.Int("week", 0, "only include games through this week (0 = all weeks)")
 	progress := flag.Bool("progress", false, "print elapsed time and nodes analyzed while solving")
 	upcoming := flag.Bool("upcoming", false, "check whether results in the current and next week's remaining games would create a cycle")
+	sweep := flag.Bool("sweep", false, "exhaustively check every combination of results in the next full week for new cycles")
 	flag.Parse()
 
 	if *upcoming && *maxWeek > 0 {
 		fmt.Fprintln(os.Stderr, "error: -upcoming cannot be combined with -week")
+		os.Exit(1)
+	}
+	if *sweep && *maxWeek > 0 {
+		fmt.Fprintln(os.Stderr, "error: -sweep cannot be combined with -week")
 		os.Exit(1)
 	}
 
@@ -36,6 +41,7 @@ func main() {
 	}
 
 	upcomingGames := upcomingGames(s.Games)
+	nextWeekGames := nextFullWeekGames(s.Games)
 	s = nfldata.FilterMaxWeek(s, *maxWeek)
 
 	nfldata.PrintSeasonStats(os.Stdout, s)
@@ -44,6 +50,9 @@ func main() {
 
 	if *upcoming {
 		printPotentialCycles(os.Stdout, g, upcomingGames)
+	}
+	if *sweep {
+		printSweep(os.Stdout, g, nextWeekGames)
 	}
 }
 
@@ -144,6 +153,92 @@ func printPotentialCycles(w *os.File, g *cycle.Graph, games []nfldata.Game) {
 		fmt.Fprintf(w, "  week %d, %s @ %s (%s): if %s wins, closes %s\n",
 			pc.Game.Week, pc.Game.AwayTeam, pc.Game.HomeTeam, pc.Game.Date,
 			pc.Winner, strings.Join(pc.Cycle, " -> "))
+	}
+}
+
+// nextFullWeekGames returns the unplayed games in the next week that has no
+// played games at all yet (as opposed to the current, possibly
+// partially-played week). It returns nil if there's no such week in the
+// data.
+func nextFullWeekGames(games []nfldata.Game) []nfldata.Game {
+	hasPlayed := map[int]bool{}
+	hasUnplayed := map[int]bool{}
+	for _, gm := range games {
+		if gm.Played() {
+			hasPlayed[gm.Week] = true
+		} else {
+			hasUnplayed[gm.Week] = true
+		}
+	}
+
+	minWeek := -1
+	for w := range hasUnplayed {
+		if minWeek == -1 || w < minWeek {
+			minWeek = w
+		}
+	}
+	if minWeek == -1 {
+		return nil
+	}
+	week := minWeek
+	if hasPlayed[minWeek] {
+		week++
+	}
+
+	var result []nfldata.Game
+	for _, gm := range games {
+		if gm.Week == week && !gm.Played() {
+			result = append(result, gm)
+		}
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].Date != result[j].Date {
+			return result[i].Date < result[j].Date
+		}
+		return result[i].Time < result[j].Time
+	})
+	return result
+}
+
+// maxSweepGroupingsShown caps how many distinct groupings printSweep lists,
+// largest cycle first, to keep the report scannable in a highly-entangled
+// week.
+const maxSweepGroupingsShown = 10
+
+// printSweep reports every distinct new cycle that could result from some
+// combination of outcomes in games (expected to be a single week's slate).
+func printSweep(w *os.File, g *cycle.Graph, games []nfldata.Game) {
+	if len(games) == 0 {
+		fmt.Fprintln(w, "\nweek sweep: season complete, no full upcoming week")
+		return
+	}
+	week := games[0].Week
+
+	groupings, total, err := g.Sweep(games)
+	if err != nil {
+		fmt.Fprintf(w, "\nweek %d sweep: %v\n", week, err)
+		return
+	}
+
+	fmt.Fprintf(w, "\nweek %d sweep: %d distinct new cycles possible across %d result combinations:\n",
+		week, len(groupings), total)
+	if len(groupings) == 0 {
+		fmt.Fprintln(w, "  none")
+		return
+	}
+	shown := groupings
+	if len(shown) > maxSweepGroupingsShown {
+		shown = shown[:maxSweepGroupingsShown]
+	}
+	for _, sg := range shown {
+		causes := make([]string, len(sg.Causes))
+		for i, c := range sg.Causes {
+			causes[i] = fmt.Sprintf("%s beats %s", c.Winner, c.Loser)
+		}
+		fmt.Fprintf(w, "  %s (%d teams): if %s\n", strings.Join(sg.Cycle, " -> "), len(sg.Cycle), strings.Join(causes, ", "))
+	}
+	if len(groupings) > maxSweepGroupingsShown {
+		fmt.Fprintf(w, "  ...and %d more\n", len(groupings)-maxSweepGroupingsShown)
 	}
 }
 

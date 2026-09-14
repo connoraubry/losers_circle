@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"math/bits"
+	"sort"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -230,6 +232,212 @@ func (g *Graph) PotentialCycles(games []nfldata.Game) []PotentialCycle {
 		}
 	}
 	return result
+}
+
+// maxSweepGames caps how many games Sweep will exhaustively enumerate
+// (2^n combinations); a real NFL week never comes close to this.
+const maxSweepGames = 20
+
+// SweepCause is one game result that contributes an edge to a
+// SweepGrouping's example cycle.
+type SweepCause struct {
+	Game   nfldata.Game
+	Winner string
+	Loser  string
+}
+
+// SweepGrouping is a distinct set of teams (identified by which teams
+// appear in Cycle) that could become mutually entangled in a new cycle
+// depending on how a batch of unplayed games turns out, but aren't already
+// entangled in g. Cycle is one example loop through those teams (the last
+// beats the first, matching Longest's convention). Causes lists the subset
+// of the swept games whose results form the edges of that example cycle;
+// edges already present in g are omitted since they aren't caused by the
+// sweep.
+type SweepGrouping struct {
+	Cycle  []string
+	Causes []SweepCause
+}
+
+// Sweep enumerates every combination of outcomes for the given unplayed
+// games (2^n combinations, where n is the number of games with recognized
+// teams) and reports each distinct new set of teams that could become
+// mutually entangled in a cycle, which g alone doesn't already show, along
+// with the number of combinations actually enumerated. It returns an error
+// if games is larger than can be swept exhaustively.
+func (g *Graph) Sweep(games []nfldata.Game) ([]SweepGrouping, int, error) {
+	var edges []sweepEdge
+	for _, gm := range games {
+		hi, ok := g.index[gm.HomeTeam]
+		if !ok {
+			continue
+		}
+		ai, ok := g.index[gm.AwayTeam]
+		if !ok {
+			continue
+		}
+		edges = append(edges, sweepEdge{hi, ai, gm})
+	}
+	if len(edges) == 0 {
+		return nil, 0, nil
+	}
+	if len(edges) > maxSweepGames {
+		return nil, 0, fmt.Errorf("too many games to sweep exhaustively (%d games, max %d)", len(edges), maxSweepGames)
+	}
+
+	baseline := map[string]bool{}
+	for _, members := range groupByComponent(g.teams, g.sccID) {
+		if len(members) >= 2 {
+			baseline[groupKey(g.teams, members)] = true
+		}
+	}
+
+	found := make(map[string]SweepGrouping)
+	total := 1 << len(edges)
+	for mask := 0; mask < total; mask++ {
+		adj := make([][]int, len(g.teams))
+		copy(adj, g.adj)
+		for i, e := range edges {
+			wi, li := e.homeIdx, e.awayIdx
+			if mask&(1<<i) != 0 {
+				wi, li = e.awayIdx, e.homeIdx
+			}
+			adj[wi] = append(append([]int(nil), adj[wi]...), li)
+		}
+
+		sccID := tarjanSCC(adj)
+		sizes := sccSizes(sccID)
+		for _, members := range groupByComponent(g.teams, sccID) {
+			if sizes[sccID[members[0]]] < 2 {
+				continue
+			}
+			key := groupKey(g.teams, members)
+			if baseline[key] {
+				continue
+			}
+			if _, ok := found[key]; ok {
+				continue
+			}
+			cycle := findCycle(adj, sccID, sccID[members[0]], members[0])
+			if cycle == nil {
+				continue
+			}
+			teams := make([]string, len(cycle))
+			for i, idx := range cycle {
+				teams[i] = g.teams[idx]
+			}
+			found[key] = SweepGrouping{Cycle: teams, Causes: sweepCauses(g, edges, mask, cycle)}
+		}
+	}
+
+	result := make([]SweepGrouping, 0, len(found))
+	for _, grouping := range found {
+		result = append(result, grouping)
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if len(result[i].Cycle) != len(result[j].Cycle) {
+			return len(result[i].Cycle) > len(result[j].Cycle)
+		}
+		return strings.Join(result[i].Cycle, ",") < strings.Join(result[j].Cycle, ",")
+	})
+	return result, total, nil
+}
+
+// groupByComponent buckets team indices by their component id (from comp,
+// as returned by tarjanSCC), keyed by component id.
+func groupByComponent(teams []string, comp []int) map[int][]int {
+	groups := make(map[int][]int)
+	for i := range teams {
+		groups[comp[i]] = append(groups[comp[i]], i)
+	}
+	return groups
+}
+
+// groupKey returns a stable key identifying a set of team indices,
+// independent of order.
+func groupKey(teams []string, members []int) string {
+	names := make([]string, len(members))
+	for i, idx := range members {
+		names[i] = teams[idx]
+	}
+	sort.Strings(names)
+	return strings.Join(names, ",")
+}
+
+// findCycle returns one directed cycle through comp starting and ending at
+// start, using only edges within comp, or nil if none is found (shouldn't
+// happen for a component of size >= 2, since it's strongly connected).
+func findCycle(adj [][]int, sccID []int, comp, start int) []int {
+	visited := map[int]bool{start: true}
+	path := []int{start}
+
+	var dfs func(cur int) bool
+	dfs = func(cur int) bool {
+		for _, nb := range adj[cur] {
+			if sccID[nb] != comp {
+				continue
+			}
+			if nb == start {
+				return true
+			}
+			if visited[nb] {
+				continue
+			}
+			visited[nb] = true
+			path = append(path, nb)
+			if dfs(nb) {
+				return true
+			}
+			path = path[:len(path)-1]
+			visited[nb] = false
+		}
+		return false
+	}
+	if dfs(start) {
+		return path
+	}
+	return nil
+}
+
+// sweepEdge is one unplayed game under consideration by Sweep, with its
+// teams pre-resolved to indices.
+type sweepEdge struct {
+	homeIdx, awayIdx int
+	game             nfldata.Game
+}
+
+// sweepCauses returns the subset of edges, as resolved by mask, whose
+// result forms an edge of cycle that isn't already present in g (i.e. the
+// swept results that actually cause this cycle to close).
+func sweepCauses(g *Graph, edges []sweepEdge, mask int, cycle []int) []SweepCause {
+	var causes []SweepCause
+	for i := range cycle {
+		from, to := cycle[i], cycle[(i+1)%len(cycle)]
+		if containsInt(g.adj[from], to) {
+			continue
+		}
+		for j, e := range edges {
+			wi, li := e.homeIdx, e.awayIdx
+			if mask&(1<<j) != 0 {
+				wi, li = e.awayIdx, e.homeIdx
+			}
+			if wi == from && li == to {
+				causes = append(causes, SweepCause{Game: e.game, Winner: g.teams[wi], Loser: g.teams[li]})
+				break
+			}
+		}
+	}
+	return causes
+}
+
+// containsInt reports whether v appears in s.
+func containsInt(s []int, v int) bool {
+	for _, x := range s {
+		if x == v {
+			return true
+		}
+	}
+	return false
 }
 
 // LongestByTeam returns each team's longest cycle (as returned by Longest),
