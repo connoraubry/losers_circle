@@ -93,3 +93,83 @@ func TestLongestSplitSeriesTwoCycle(t *testing.T) {
 		t.Fatalf("Longest(A) = %v, want %v", got, want)
 	}
 }
+
+func unplayed(home, away string, week int) nfldata.Game {
+	return nfldata.Game{HomeTeam: home, AwayTeam: away, Week: week, Status: "scheduled"}
+}
+
+func TestShortestPath(t *testing.T) {
+	s := nfldata.Season{
+		Teams: []string{"A", "B", "C", "D"},
+		Games: []nfldata.Game{
+			game("A", "B"),
+			game("B", "C"),
+		},
+	}
+	g := Build(s)
+
+	if got, want := g.ShortestPath("A", "C"), []string{"A", "B", "C"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("ShortestPath(A, C) = %v, want %v", got, want)
+	}
+	if got := g.ShortestPath("C", "A"); got != nil {
+		t.Fatalf("ShortestPath(C, A) = %v, want nil", got)
+	}
+	if got := g.ShortestPath("A", "D"); got != nil {
+		t.Fatalf("ShortestPath(A, D) = %v, want nil (D isolated)", got)
+	}
+}
+
+func TestPotentialCyclesClosesCycle(t *testing.T) {
+	// A beat B beat C; an unplayed C-vs-A game closes a cycle iff C beats A.
+	s := nfldata.Season{
+		Teams: []string{"A", "B", "C"},
+		Games: []nfldata.Game{
+			game("A", "B"),
+			game("B", "C"),
+		},
+	}
+	g := Build(s)
+
+	pcs := g.PotentialCycles([]nfldata.Game{unplayed("C", "A", 3)})
+	if len(pcs) != 1 {
+		t.Fatalf("PotentialCycles = %v, want exactly one closing outcome", pcs)
+	}
+	pc := pcs[0]
+	if pc.Winner != "C" || pc.Loser != "A" {
+		t.Fatalf("PotentialCycles = %+v, want C beating A to close the cycle", pc)
+	}
+	if want := []string{"A", "B", "C"}; !reflect.DeepEqual(pc.Cycle, want) {
+		t.Fatalf("Cycle = %v, want %v", pc.Cycle, want)
+	}
+}
+
+func TestPotentialCyclesSkipsPlayedGames(t *testing.T) {
+	s := nfldata.Season{
+		Teams: []string{"A", "B", "C"},
+		Games: []nfldata.Game{
+			game("A", "B"),
+			game("B", "C"),
+		},
+	}
+	g := Build(s)
+
+	pcs := g.PotentialCycles([]nfldata.Game{game("C", "A")})
+	if pcs != nil {
+		t.Fatalf("PotentialCycles = %v, want nil for an already-played game", pcs)
+	}
+}
+
+func TestPotentialCyclesNoPath(t *testing.T) {
+	s := nfldata.Season{
+		Teams: []string{"A", "B", "C"},
+		Games: []nfldata.Game{
+			game("A", "B"),
+		},
+	}
+	g := Build(s)
+
+	pcs := g.PotentialCycles([]nfldata.Game{unplayed("B", "C", 3)})
+	if pcs != nil {
+		t.Fatalf("PotentialCycles = %v, want nil (no existing path could close a cycle)", pcs)
+	}
+}
