@@ -7,8 +7,11 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"html"
 	"os"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	graphviz "github.com/goccy/go-graphviz"
@@ -26,18 +29,14 @@ var palette = []string{
 	"#dcbeff", "#9a6324", "#800000", "#aaffc3", "#808000",
 }
 
-// neutralColor is used for edges/nodes not on any cycle.
+// neutralColor is used for edges/nodes not on any distinct cycle.
 const neutralColor = "#999999"
-
-// fallbackCycleColor is used for edges that lie on some cycle (per
-// cycle.Graph.InCycle) but aren't covered by any distinct cycle derived
-// from byTeam, since only the longest cycle per team is known.
-const fallbackCycleColor = "#555555"
 
 // Options configures Render.
 type Options struct {
-	// OnlyCycles restricts the rendered graph to teams/edges that lie on an
-	// existing cycle, instead of every team/edge in g.
+	// OnlyCycles renders only the distinct cycles themselves - their
+	// member teams and the edges that form each loop - instead of the
+	// full win/loss graph.
 	OnlyCycles bool
 }
 
@@ -58,11 +57,21 @@ func Render(path string, g *cycle.Graph, byTeam map[string][]string, opts Option
 		return fmt.Errorf("create graph: %w", err)
 	}
 	defer graph.Close()
-	graph.SetRankDir(cgraph.LRRank)
+	if opts.OnlyCycles {
+		// A pure cycle draws as an actual, compact ring under circo,
+		// instead of the long line dot/LR-rank produces for a simple loop.
+		gv.SetLayout(graphviz.CIRCO)
+	} else {
+		graph.SetRankDir(cgraph.LRRank)
+	}
 
 	nodes := map[string]*cgraph.Node{}
-	getNode := func(name string) (*cgraph.Node, error) {
+	nodeColor := map[string]string{}
+	getNode := func(name, color string) (*cgraph.Node, error) {
 		if n, ok := nodes[name]; ok {
+			if nodeColor[name] == neutralColor && color != neutralColor {
+				nodeColor[name] = color
+			}
 			return n, nil
 		}
 		n, err := graph.CreateNodeByName(name)
@@ -71,80 +80,186 @@ func Render(path string, g *cycle.Graph, byTeam map[string][]string, opts Option
 		}
 		n.SetShape(cgraph.EllipseShape)
 		nodes[name] = n
+		nodeColor[name] = color
 		return n, nil
 	}
-
-	usedTeams := map[string]bool{}
-	for _, e := range g.Edges() {
-		winner, loser := e[0], e[1]
-		inCycle := g.InCycle(winner, loser)
-		if opts.OnlyCycles && !inCycle {
-			continue
-		}
-
-		wn, err := getNode(winner)
+	addEdge := func(winner, loser, color string) error {
+		wn, err := getNode(winner, color)
 		if err != nil {
 			return fmt.Errorf("create node %s: %w", winner, err)
 		}
-		ln, err := getNode(loser)
+		ln, err := getNode(loser, color)
 		if err != nil {
 			return fmt.Errorf("create node %s: %w", loser, err)
 		}
-		usedTeams[winner] = true
-		usedTeams[loser] = true
-
 		edge, err := graph.CreateEdgeByName(winner+"->"+loser, wn, ln)
 		if err != nil {
 			return fmt.Errorf("create edge %s->%s: %w", winner, loser, err)
 		}
-		edge.SetColor(edgeColor(cycles, winner, loser, inCycle))
+		edge.SetColor(color)
+		return nil
+	}
+
+	if opts.OnlyCycles {
+		// Only the distinct cycles' own edges - nothing else in the graph.
+		for _, dc := range cycles {
+			for i, t := range dc.teams {
+				next := dc.teams[(i+1)%len(dc.teams)]
+				if err := addEdge(t, next, dc.color); err != nil {
+					return err
+				}
+			}
+		}
+	} else {
+		for _, e := range g.Edges() {
+			winner, loser := e[0], e[1]
+			if err := addEdge(winner, loser, edgeColor(cycles, winner, loser)); err != nil {
+				return err
+			}
+		}
 	}
 
 	for name, n := range nodes {
-		if !usedTeams[name] {
+		if nodeColor[name] == neutralColor {
 			continue
 		}
-		if !inAnyCycle(cycles, name) && !g.NodeInCycle(name) {
-			n.SetColor(neutralColor)
-		}
-	}
-
-	if err := addLegend(graph, cycles); err != nil {
-		return fmt.Errorf("add legend: %w", err)
+		n.SetColor(nodeColor[name])
+		n.SetStyle(cgraph.FilledNodeStyle)
+		n.SetFontColor("#ffffff")
 	}
 
 	var buf bytes.Buffer
 	if err := gv.Render(ctx, graph, graphviz.SVG, &buf); err != nil {
 		return fmt.Errorf("render svg: %w", err)
 	}
-	return os.WriteFile(path, buf.Bytes(), 0o644)
+
+	out, err := addLegend(buf.Bytes(), cycles)
+	if err != nil {
+		return fmt.Errorf("add legend: %w", err)
+	}
+	return os.WriteFile(path, out, 0o644)
 }
 
-// addLegend adds a cluster subgraph listing each distinct cycle's color and
-// team sequence, so the colors in the main graph can be identified.
-func addLegend(graph *cgraph.Graph, cycles []distinctCycle) error {
+// svgOpenTag matches the opening <svg width="..pt" height="..pt" of
+// graphviz's SVG output, to recover its rendered size.
+var svgOpenTag = regexp.MustCompile(`<svg\s+width="([\d.]+)pt"\s+height="([\d.]+)pt"`)
+
+// addLegend prepends a compact, wrapping legend row (one swatch + label per
+// distinct cycle) above svg, extending the canvas down by only as much
+// height as the legend actually needs rather than leaving it wherever
+// Graphviz would otherwise place a cluster. svg is left untouched if there
+// are no cycles to show.
+func addLegend(svg []byte, cycles []distinctCycle) ([]byte, error) {
 	if len(cycles) == 0 {
-		return nil
+		return svg, nil
 	}
 
-	legend, err := graph.CreateSubGraphByName("cluster_legend")
+	loc := svgOpenTag.FindSubmatchIndex(svg)
+	if loc == nil {
+		return nil, fmt.Errorf("unrecognized graphviz svg output")
+	}
+	graphWidth, err := strconv.ParseFloat(string(svg[loc[2]:loc[3]]), 64)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("parse graph width: %w", err)
 	}
-	legend.SetLabel("Cycles")
+	graphHeight, err := strconv.ParseFloat(string(svg[loc[4]:loc[5]]), 64)
+	if err != nil {
+		return nil, fmt.Errorf("parse graph height: %w", err)
+	}
 
-	for i, dc := range cycles {
-		n, err := legend.CreateNodeByName(fmt.Sprintf("legend_%d", i))
-		if err != nil {
-			return err
-		}
-		n.SetShape(cgraph.BoxShape)
-		n.SetStyle(cgraph.FilledNodeStyle)
-		n.SetColor(dc.color)
-		n.SetFontColor("#ffffff")
-		n.SetLabel(strings.Join(dc.teams, " -> "))
+	bodyStart := bytes.IndexByte(svg[loc[1]:], '>')
+	if bodyStart < 0 {
+		return nil, fmt.Errorf("unrecognized graphviz svg output")
 	}
-	return nil
+	bodyStart += loc[1] + 1
+	bodyEnd := bytes.LastIndex(svg, []byte("</svg>"))
+	if bodyEnd < 0 {
+		return nil, fmt.Errorf("unrecognized graphviz svg output")
+	}
+	body := svg[bodyStart:bodyEnd]
+
+	const (
+		padding    = 10.0
+		rowHeight  = 22.0
+		swatchSize = 14.0
+		labelGapX  = 6.0
+		itemGapX   = 24.0
+		fontSize   = 11.0
+		charWidth  = 6.2 // rough average glyph width at fontSize, for wrapping
+	)
+	rowMaxWidth := graphWidth
+	if rowMaxWidth < 300 {
+		rowMaxWidth = 300
+	}
+
+	type placedItem struct {
+		color, label string
+		x, y         float64
+	}
+	var items []placedItem
+	x, y := padding, padding
+	rowContentWidth := 0.0
+	for _, dc := range cycles {
+		label := legendLabel(dc.teams)
+		width := swatchSize + labelGapX + float64(len(label))*charWidth
+		if x > padding && x+width > rowMaxWidth {
+			x = padding
+			y += rowHeight
+		}
+		items = append(items, placedItem{color: dc.color, label: label, x: x, y: y})
+		x += width + itemGapX
+		if x-itemGapX > rowContentWidth {
+			rowContentWidth = x - itemGapX
+		}
+	}
+	legendWidth := rowContentWidth + padding
+	legendHeight := y + rowHeight + padding
+
+	finalWidth := graphWidth
+	if legendWidth > finalWidth {
+		finalWidth = legendWidth
+	}
+	finalHeight := legendHeight + graphHeight
+	graphXOffset := (finalWidth - graphWidth) / 2
+	legendXOffset := (finalWidth - legendWidth) / 2
+
+	var out bytes.Buffer
+	fmt.Fprint(&out, `<?xml version="1.0" encoding="UTF-8" standalone="no"?>`+"\n")
+	fmt.Fprintf(&out, `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="%.2fpt" height="%.2fpt" viewBox="0.00 0.00 %.2f %.2f">`+"\n",
+		finalWidth, finalHeight, finalWidth, finalHeight)
+
+	fmt.Fprintf(&out, `<g transform="translate(%.2f,0)">`+"\n", legendXOffset)
+	for _, it := range items {
+		fmt.Fprintf(&out, `<rect x="%.2f" y="%.2f" width="%.2f" height="%.2f" fill="%s" stroke="none"/>`+"\n",
+			it.x, it.y, swatchSize, swatchSize, it.color)
+		fmt.Fprintf(&out, `<text x="%.2f" y="%.2f" font-family="Helvetica,Arial,sans-serif" font-size="%.0f" fill="#000000">%s</text>`+"\n",
+			it.x+swatchSize+labelGapX, it.y+swatchSize-3, fontSize, html.EscapeString(it.label))
+	}
+	out.WriteString("</g>\n")
+
+	fmt.Fprintf(&out, `<g transform="translate(%.2f,%.2f)">`+"\n", graphXOffset, legendHeight)
+	out.Write(body)
+	out.WriteString("</g>\n</svg>\n")
+
+	return out.Bytes(), nil
+}
+
+// maxLegendTeams caps how many teams a legend label spells out before
+// collapsing the middle, so a large cycle (e.g. spanning most of a league)
+// doesn't blow up the legend's width.
+const maxLegendTeams = 6
+
+// legendLabel returns cycle's team sequence for display in the legend,
+// collapsing the middle of long cycles to their first and last few teams
+// plus a total count.
+func legendLabel(teams []string) string {
+	if len(teams) <= maxLegendTeams {
+		return strings.Join(teams, " -> ")
+	}
+	half := maxLegendTeams / 2
+	head := strings.Join(teams[:half], " -> ")
+	tail := strings.Join(teams[len(teams)-half:], " -> ")
+	return fmt.Sprintf("%s -> ... -> %s (%d teams)", head, tail, len(teams))
 }
 
 // distinctCycle is one deduplicated cycle used for coloring, with its
@@ -202,11 +317,10 @@ func canonicalize(c []string) (key string, canon []string) {
 	return strings.Join(canon, ","), canon
 }
 
-// edgeColor returns the color for edge winner->loser: the color of the
-// longest distinct cycle containing that consecutive pair (cycles is
-// sorted longest-first), or fallbackCycleColor/neutralColor depending on
-// whether the edge lies on some cycle at all.
-func edgeColor(cycles []distinctCycle, winner, loser string, inCycle bool) string {
+// edgeColor returns the color of the longest distinct cycle containing the
+// consecutive pair winner->loser (cycles is sorted longest-first), or
+// neutralColor if no distinct cycle contains that edge.
+func edgeColor(cycles []distinctCycle, winner, loser string) string {
 	for _, dc := range cycles {
 		for i, t := range dc.teams {
 			if t == winner && dc.teams[(i+1)%len(dc.teams)] == loser {
@@ -214,20 +328,5 @@ func edgeColor(cycles []distinctCycle, winner, loser string, inCycle bool) strin
 			}
 		}
 	}
-	if inCycle {
-		return fallbackCycleColor
-	}
 	return neutralColor
-}
-
-// inAnyCycle reports whether team appears in any distinct cycle.
-func inAnyCycle(cycles []distinctCycle, team string) bool {
-	for _, dc := range cycles {
-		for _, t := range dc.teams {
-			if t == team {
-				return true
-			}
-		}
-	}
-	return false
 }
