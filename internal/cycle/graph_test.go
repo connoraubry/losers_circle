@@ -173,3 +173,71 @@ func TestPotentialCyclesNoPath(t *testing.T) {
 		t.Fatalf("PotentialCycles = %v, want nil (no existing path could close a cycle)", pcs)
 	}
 }
+
+func TestSweepFindsCycleAcrossCombination(t *testing.T) {
+	// A beat D already. A 4-cycle only closes if all three upcoming games
+	// go the "wrong" way (B beats A, C beats B, D beats C), out of 8
+	// possible combinations.
+	s := nfldata.Season{
+		Teams: []string{"A", "B", "C", "D"},
+		Games: []nfldata.Game{
+			game("A", "D"),
+		},
+	}
+	g := Build(s)
+
+	groupings, total, err := g.Sweep([]nfldata.Game{
+		unplayed("B", "A", 2),
+		unplayed("C", "B", 2),
+		unplayed("D", "C", 2),
+	})
+	if err != nil {
+		t.Fatalf("Sweep returned error: %v", err)
+	}
+	if total != 8 {
+		t.Fatalf("total = %d, want 8", total)
+	}
+	if len(groupings) != 1 {
+		t.Fatalf("groupings = %+v, want exactly one", groupings)
+	}
+	if want := []string{"A", "D", "C", "B"}; !reflect.DeepEqual(groupings[0].Cycle, want) {
+		t.Fatalf("Cycle = %v, want %v", groupings[0].Cycle, want)
+	}
+	if len(groupings[0].Causes) != 3 {
+		t.Fatalf("Causes = %+v, want 3 (the A->D edge is pre-existing, not a cause)", groupings[0].Causes)
+	}
+}
+
+func TestSweepExcludesExistingCycle(t *testing.T) {
+	// A and B already form a cycle; an unplayed C-D game can't be a "new"
+	// grouping involving A/B since it's disjoint from them.
+	s := nfldata.Season{
+		Teams: []string{"A", "B", "C", "D"},
+		Games: []nfldata.Game{
+			game("A", "B"),
+			game("B", "A"),
+		},
+	}
+	g := Build(s)
+
+	groupings, _, err := g.Sweep([]nfldata.Game{unplayed("C", "D", 2)})
+	if err != nil {
+		t.Fatalf("Sweep returned error: %v", err)
+	}
+	if len(groupings) != 0 {
+		t.Fatalf("groupings = %v, want none (C-D alone can't form a cycle, and A-B isn't new)", groupings)
+	}
+}
+
+func TestSweepTooManyGames(t *testing.T) {
+	s := nfldata.Season{Teams: []string{"A", "B"}, Games: nil}
+	g := Build(s)
+
+	var games []nfldata.Game
+	for i := 0; i < maxSweepGames+1; i++ {
+		games = append(games, unplayed("A", "B", 2))
+	}
+	if _, _, err := g.Sweep(games); err == nil {
+		t.Fatalf("Sweep with %d games: want error, got nil", len(games))
+	}
+}
