@@ -142,6 +142,49 @@ func (g *Graph) longest(team string, visits *int64) []string {
 	return result
 }
 
+// Teams returns the season's team abbreviations.
+func (g *Graph) Teams() []string {
+	return append([]string(nil), g.teams...)
+}
+
+// Edges returns every "beat" edge in the graph as (winner, loser) pairs.
+func (g *Graph) Edges() [][2]string {
+	var edges [][2]string
+	for i, nbs := range g.adj {
+		for _, j := range nbs {
+			edges = append(edges, [2]string{g.teams[i], g.teams[j]})
+		}
+	}
+	return edges
+}
+
+// InCycle reports whether the edge winner->loser lies on some existing
+// cycle. An edge inside a strongly connected component of size >= 2 always
+// closes a cycle, since the component guarantees a path back from loser to
+// winner.
+func (g *Graph) InCycle(winner, loser string) bool {
+	wi, ok := g.index[winner]
+	if !ok {
+		return false
+	}
+	li, ok := g.index[loser]
+	if !ok {
+		return false
+	}
+	scc := g.sccID[wi]
+	return scc == g.sccID[li] && g.sccSize[scc] >= 2
+}
+
+// NodeInCycle reports whether team lies on some existing cycle, i.e.
+// shares a strongly connected component of size >= 2 with another team.
+func (g *Graph) NodeInCycle(team string) bool {
+	i, ok := g.index[team]
+	if !ok {
+		return false
+	}
+	return g.sccSize[g.sccID[i]] >= 2
+}
+
 // ShortestPath returns the shortest directed path from `from` to `to`
 // (inclusive of both endpoints), or nil if no path exists.
 func (g *Graph) ShortestPath(from, to string) []string {
