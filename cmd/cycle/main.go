@@ -224,7 +224,7 @@ func nextFullWeekGames(games []nfldata.Game) []nfldata.Game {
 // maxSweepGroupingsShown caps how many distinct groupings printSweep lists,
 // largest cycle first, to keep the report scannable in a highly-entangled
 // week.
-const maxSweepGroupingsShown = 10
+const maxSweepGroupingsShown = 15
 
 // printSweep reports every distinct new cycle that could result from some
 // combination of outcomes in games (expected to be a single week's slate).
@@ -235,14 +235,14 @@ func printSweep(w *os.File, g *cycle.Graph, games []nfldata.Game) {
 	}
 	week := games[0].Week
 
-	groupings, total, err := g.Sweep(games)
+	groupings, total, newCycleCombos, err := g.Sweep(games)
 	if err != nil {
 		fmt.Fprintf(w, "\nweek %d sweep: %v\n", week, err)
 		return
 	}
 
-	fmt.Fprintf(w, "\nweek %d sweep: %d distinct new cycles possible across %d result combinations:\n",
-		week, len(groupings), total)
+	fmt.Fprintf(w, "\nweek %d sweep: %d distinct new cycles possible across %d result combinations (%d combinations produce a new cycle):\n",
+		week, len(groupings), total, newCycleCombos)
 	if len(groupings) == 0 {
 		fmt.Fprintln(w, "  none")
 		return

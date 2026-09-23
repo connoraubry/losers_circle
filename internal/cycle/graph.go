@@ -291,9 +291,10 @@ type SweepGrouping struct {
 // games (2^n combinations, where n is the number of games with recognized
 // teams) and reports each distinct new set of teams that could become
 // mutually entangled in a cycle, which g alone doesn't already show, along
-// with the number of combinations actually enumerated. It returns an error
-// if games is larger than can be swept exhaustively.
-func (g *Graph) Sweep(games []nfldata.Game) ([]SweepGrouping, int, error) {
+// with the number of combinations actually enumerated and how many of those
+// combinations produce at least one new cycle. It returns an error if games
+// is larger than can be swept exhaustively.
+func (g *Graph) Sweep(games []nfldata.Game) (groupings []SweepGrouping, total, newCycleCombos int, err error) {
 	var edges []sweepEdge
 	for _, gm := range games {
 		hi, ok := g.index[gm.HomeTeam]
@@ -307,10 +308,10 @@ func (g *Graph) Sweep(games []nfldata.Game) ([]SweepGrouping, int, error) {
 		edges = append(edges, sweepEdge{hi, ai, gm})
 	}
 	if len(edges) == 0 {
-		return nil, 0, nil
+		return nil, 0, 0, nil
 	}
 	if len(edges) > maxSweepGames {
-		return nil, 0, fmt.Errorf("too many games to sweep exhaustively (%d games, max %d)", len(edges), maxSweepGames)
+		return nil, 0, 0, fmt.Errorf("too many games to sweep exhaustively (%d games, max %d)", len(edges), maxSweepGames)
 	}
 
 	baseline := map[string]bool{}
@@ -321,7 +322,7 @@ func (g *Graph) Sweep(games []nfldata.Game) ([]SweepGrouping, int, error) {
 	}
 
 	found := make(map[string]SweepGrouping)
-	total := 1 << len(edges)
+	total = 1 << len(edges)
 	for mask := 0; mask < total; mask++ {
 		adj := make([][]int, len(g.teams))
 		copy(adj, g.adj)
@@ -335,19 +336,27 @@ func (g *Graph) Sweep(games []nfldata.Game) ([]SweepGrouping, int, error) {
 
 		sccID := tarjanSCC(adj)
 		sizes := sccSizes(sccID)
+		maskHasNewCycle := false
 		for _, members := range groupByComponent(g.teams, sccID) {
 			if sizes[sccID[members[0]]] < 2 {
 				continue
 			}
-			key := groupKey(g.teams, members)
-			if baseline[key] {
-				continue
-			}
-			if _, ok := found[key]; ok {
+			if baseline[groupKey(g.teams, members)] {
 				continue
 			}
 			cycle := findCycle(adj, sccID, sccID[members[0]], members[0])
 			if cycle == nil {
+				continue
+			}
+			maskHasNewCycle = true
+			// Key on the teams actually shown in Cycle, not the full SCC
+			// membership: the component can include peripheral teams that
+			// findCycle's simple loop doesn't pass through, and different
+			// masks can pull in different peripherals around the same
+			// minimal cycle, which would otherwise register as distinct
+			// groupings despite printing identically.
+			key := groupKey(g.teams, cycle)
+			if _, ok := found[key]; ok {
 				continue
 			}
 			teams := make([]string, len(cycle))
@@ -355,6 +364,9 @@ func (g *Graph) Sweep(games []nfldata.Game) ([]SweepGrouping, int, error) {
 				teams[i] = g.teams[idx]
 			}
 			found[key] = SweepGrouping{Cycle: teams, Causes: sweepCauses(g, edges, mask, cycle)}
+		}
+		if maskHasNewCycle {
+			newCycleCombos++
 		}
 	}
 
@@ -368,7 +380,7 @@ func (g *Graph) Sweep(games []nfldata.Game) ([]SweepGrouping, int, error) {
 		}
 		return strings.Join(result[i].Cycle, ",") < strings.Join(result[j].Cycle, ",")
 	})
-	return result, total, nil
+	return result, total, newCycleCombos, nil
 }
 
 // groupByComponent buckets team indices by their component id (from comp,

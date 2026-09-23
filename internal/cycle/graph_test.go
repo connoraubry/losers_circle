@@ -283,7 +283,7 @@ func TestSweepFindsCycleAcrossCombination(t *testing.T) {
 	}
 	g := Build(s)
 
-	groupings, total, err := g.Sweep([]nfldata.Game{
+	groupings, total, newCycleCombos, err := g.Sweep([]nfldata.Game{
 		unplayed("B", "A", 2),
 		unplayed("C", "B", 2),
 		unplayed("D", "C", 2),
@@ -293,6 +293,9 @@ func TestSweepFindsCycleAcrossCombination(t *testing.T) {
 	}
 	if total != 8 {
 		t.Fatalf("total = %d, want 8", total)
+	}
+	if newCycleCombos != 1 {
+		t.Fatalf("newCycleCombos = %d, want 1", newCycleCombos)
 	}
 	if len(groupings) != 1 {
 		t.Fatalf("groupings = %+v, want exactly one", groupings)
@@ -317,7 +320,7 @@ func TestSweepExcludesExistingCycle(t *testing.T) {
 	}
 	g := Build(s)
 
-	groupings, _, err := g.Sweep([]nfldata.Game{unplayed("C", "D", 2)})
+	groupings, _, _, err := g.Sweep([]nfldata.Game{unplayed("C", "D", 2)})
 	if err != nil {
 		t.Fatalf("Sweep returned error: %v", err)
 	}
@@ -334,7 +337,7 @@ func TestSweepTooManyGames(t *testing.T) {
 	for i := 0; i < maxSweepGames+1; i++ {
 		games = append(games, unplayed("A", "B", 2))
 	}
-	if _, _, err := g.Sweep(games); err == nil {
+	if _, _, _, err := g.Sweep(games); err == nil {
 		t.Fatalf("Sweep with %d games: want error, got nil", len(games))
 	}
 }
