@@ -22,7 +22,8 @@ func main() {
 	maxWeek := flag.Int("week", 0, "only include games through this week (0 = all weeks)")
 	progress := flag.Bool("progress", false, "print elapsed time and nodes analyzed while solving")
 	upcoming := flag.Bool("upcoming", false, "check whether results in the current and next week's remaining games would create a cycle")
-	sweep := flag.Bool("sweep", false, "exhaustively check every combination of results in the next full week for new cycles")
+	sweep := flag.Bool("sweep", false, "exhaustively check every combination of results in the current week's remaining games for new cycles")
+	sweepNext := flag.Bool("sweep-next", false, "exhaustively check every combination of results in the next full week for new cycles")
 	graphSVG := flag.Bool("graph", false, "write the full win/loss graph to graph.svg")
 	cycleGraphSVG := flag.Bool("cycle-graph", false, "write only the teams/edges on an existing cycle to cycles.svg")
 	flag.Parse()
@@ -35,6 +36,10 @@ func main() {
 		fmt.Fprintln(os.Stderr, "error: -sweep cannot be combined with -week")
 		os.Exit(1)
 	}
+	if *sweepNext && *maxWeek > 0 {
+		fmt.Fprintln(os.Stderr, "error: -sweep-next cannot be combined with -week")
+		os.Exit(1)
+	}
 
 	path := filepath.Join(*dir, fmt.Sprintf("%d.json", *season))
 	s, err := nfldata.LoadFile(path)
@@ -44,6 +49,7 @@ func main() {
 	}
 
 	upcomingGames := upcomingGames(s.Games)
+	thisWeekGames := currentWeekGames(s.Games)
 	nextWeekGames := nextFullWeekGames(s.Games)
 	s = nfldata.FilterMaxWeek(s, *maxWeek)
 
@@ -55,6 +61,9 @@ func main() {
 		printPotentialCycles(os.Stdout, g, upcomingGames)
 	}
 	if *sweep {
+		printSweep(os.Stdout, g, thisWeekGames)
+	}
+	if *sweepNext {
 		printSweep(os.Stdout, g, nextWeekGames)
 	}
 
@@ -175,6 +184,39 @@ func printPotentialCycles(w *os.File, g *cycle.Graph, games []nfldata.Game) {
 			pc.Game.Week, pc.Game.AwayTeam, pc.Game.HomeTeam, pc.Game.Date,
 			pc.Winner, strings.Join(pc.Cycle, " -> "))
 	}
+}
+
+// currentWeekGames returns the unplayed games in the earliest week that has
+// any unplayed game — this week's remaining games, whether or not some of
+// that week has already been played. It returns nil if every game has been
+// played.
+func currentWeekGames(games []nfldata.Game) []nfldata.Game {
+	minWeek := -1
+	for _, gm := range games {
+		if gm.Played() {
+			continue
+		}
+		if minWeek == -1 || gm.Week < minWeek {
+			minWeek = gm.Week
+		}
+	}
+	if minWeek == -1 {
+		return nil
+	}
+
+	var result []nfldata.Game
+	for _, gm := range games {
+		if gm.Week == minWeek && !gm.Played() {
+			result = append(result, gm)
+		}
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].Date != result[j].Date {
+			return result[i].Date < result[j].Date
+		}
+		return result[i].Time < result[j].Time
+	})
+	return result
 }
 
 // nextFullWeekGames returns the unplayed games in the next week that has no
