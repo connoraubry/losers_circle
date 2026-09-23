@@ -41,6 +41,10 @@ func main() {
 		fmt.Fprintln(os.Stderr, "error: -sweep-next cannot be combined with -week")
 		os.Exit(1)
 	}
+	if *sweepAll && !*sweep && !*sweepNext {
+		fmt.Fprintln(os.Stderr, "error: -sweep-all requires -sweep or -sweep-next")
+		os.Exit(1)
+	}
 
 	path := filepath.Join(*dir, fmt.Sprintf("%d.json", *season))
 	s, err := nfldata.LoadFile(path)
