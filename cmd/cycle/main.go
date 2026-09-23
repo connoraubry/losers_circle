@@ -24,6 +24,7 @@ func main() {
 	upcoming := flag.Bool("upcoming", false, "check whether results in the current and next week's remaining games would create a cycle")
 	sweep := flag.Bool("sweep", false, "exhaustively check every combination of results in the current week's remaining games for new cycles")
 	sweepNext := flag.Bool("sweep-next", false, "exhaustively check every combination of results in the next full week for new cycles")
+	sweepAll := flag.Bool("sweep-all", false, "print every distinct cycle grouping found by -sweep/-sweep-next, not just the top ones")
 	graphSVG := flag.Bool("graph", false, "write the full win/loss graph to graph.svg")
 	cycleGraphSVG := flag.Bool("cycle-graph", false, "write only the teams/edges on an existing cycle to cycles.svg")
 	flag.Parse()
@@ -61,10 +62,10 @@ func main() {
 		printPotentialCycles(os.Stdout, g, upcomingGames)
 	}
 	if *sweep {
-		printSweep(os.Stdout, g, thisWeekGames)
+		printSweep(os.Stdout, g, thisWeekGames, *sweepAll)
 	}
 	if *sweepNext {
-		printSweep(os.Stdout, g, nextWeekGames)
+		printSweep(os.Stdout, g, nextWeekGames, *sweepAll)
 	}
 
 	if *graphSVG || *cycleGraphSVG {
@@ -270,7 +271,8 @@ const maxSweepGroupingsShown = 15
 
 // printSweep reports every distinct new cycle that could result from some
 // combination of outcomes in games (expected to be a single week's slate).
-func printSweep(w *os.File, g *cycle.Graph, games []nfldata.Game) {
+// It lists at most maxSweepGroupingsShown groupings unless all is true.
+func printSweep(w *os.File, g *cycle.Graph, games []nfldata.Game, all bool) {
 	if len(games) == 0 {
 		fmt.Fprintln(w, "\nweek sweep: season complete, no full upcoming week")
 		return
@@ -290,7 +292,7 @@ func printSweep(w *os.File, g *cycle.Graph, games []nfldata.Game) {
 		return
 	}
 	shown := groupings
-	if len(shown) > maxSweepGroupingsShown {
+	if !all && len(shown) > maxSweepGroupingsShown {
 		shown = shown[:maxSweepGroupingsShown]
 	}
 	for _, sg := range shown {
@@ -300,8 +302,8 @@ func printSweep(w *os.File, g *cycle.Graph, games []nfldata.Game) {
 		}
 		fmt.Fprintf(w, "  %s (%d teams): if %s\n", strings.Join(sg.Cycle, " -> "), len(sg.Cycle), strings.Join(causes, ", "))
 	}
-	if len(groupings) > maxSweepGroupingsShown {
-		fmt.Fprintf(w, "  ...and %d more\n", len(groupings)-maxSweepGroupingsShown)
+	if len(shown) < len(groupings) {
+		fmt.Fprintf(w, "  ...and %d more\n", len(groupings)-len(shown))
 	}
 }
 
