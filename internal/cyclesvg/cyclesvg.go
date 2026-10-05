@@ -1,6 +1,7 @@
 // Package cyclesvg renders a cycle.Graph as an SVG image: teams as nodes,
 // "beat" relationships as directed edges. Edges belonging to a distinct
-// cycle are colored per cycle, with a legend describing each one.
+// cycle are colored per cycle, with a legend describing each one. A pair of
+// teams on several distinct cycles gets one parallel line per cycle.
 package cyclesvg
 
 import (
@@ -83,7 +84,12 @@ func Render(path string, g *cycle.Graph, byTeam map[string][]string, opts Option
 		nodeColor[name] = color
 		return n, nil
 	}
-	addEdge := func(winner, loser, color string) error {
+	// addEdge creates one visual edge. edgeKey disambiguates parallel edges
+	// between the same winner/loser: edges sharing a key are coalesced by
+	// graphviz into one line, while distinct keys render as separate,
+	// automatically-offset parallel lines - which is how a pair that's part
+	// of several distinct cycles ends up with one line per cycle.
+	addEdge := func(winner, loser, color, edgeKey string) error {
 		wn, err := getNode(winner, color)
 		if err != nil {
 			return fmt.Errorf("create node %s: %w", winner, err)
@@ -92,7 +98,11 @@ func Render(path string, g *cycle.Graph, byTeam map[string][]string, opts Option
 		if err != nil {
 			return fmt.Errorf("create node %s: %w", loser, err)
 		}
-		edge, err := graph.CreateEdgeByName(winner+"->"+loser, wn, ln)
+		name := winner + "->" + loser
+		if edgeKey != "" {
+			name += "#" + edgeKey
+		}
+		edge, err := graph.CreateEdgeByName(name, wn, ln)
 		if err != nil {
 			return fmt.Errorf("create edge %s->%s: %w", winner, loser, err)
 		}
@@ -102,10 +112,12 @@ func Render(path string, g *cycle.Graph, byTeam map[string][]string, opts Option
 
 	if opts.OnlyCycles {
 		// Only the distinct cycles' own edges - nothing else in the graph.
-		for _, dc := range cycles {
+		// Each cycle gets its own edgeKey so a pair shared by multiple
+		// cycles still draws one line per cycle.
+		for ci, dc := range cycles {
 			for i, t := range dc.teams {
 				next := dc.teams[(i+1)%len(dc.teams)]
-				if err := addEdge(t, next, dc.color); err != nil {
+				if err := addEdge(t, next, dc.color, strconv.Itoa(ci)); err != nil {
 					return err
 				}
 			}
@@ -113,8 +125,17 @@ func Render(path string, g *cycle.Graph, byTeam map[string][]string, opts Option
 	} else {
 		for _, e := range g.Edges() {
 			winner, loser := e[0], e[1]
-			if err := addEdge(winner, loser, edgeColor(cycles, winner, loser)); err != nil {
-				return err
+			idxs := cyclesWithEdge(cycles, winner, loser)
+			if len(idxs) == 0 {
+				if err := addEdge(winner, loser, neutralColor, ""); err != nil {
+					return err
+				}
+				continue
+			}
+			for _, ci := range idxs {
+				if err := addEdge(winner, loser, cycles[ci].color, strconv.Itoa(ci)); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -317,16 +338,19 @@ func canonicalize(c []string) (key string, canon []string) {
 	return strings.Join(canon, ","), canon
 }
 
-// edgeColor returns the color of the longest distinct cycle containing the
-// consecutive pair winner->loser (cycles is sorted longest-first), or
-// neutralColor if no distinct cycle contains that edge.
-func edgeColor(cycles []distinctCycle, winner, loser string) string {
-	for _, dc := range cycles {
+// cyclesWithEdge returns the indexes into cycles of every distinct cycle
+// containing the consecutive pair winner->loser, in cycles' order. An edge
+// on no cycle (nil result) is neutral; an edge on several gets one colored
+// line per returned index.
+func cyclesWithEdge(cycles []distinctCycle, winner, loser string) []int {
+	var idxs []int
+	for ci, dc := range cycles {
 		for i, t := range dc.teams {
 			if t == winner && dc.teams[(i+1)%len(dc.teams)] == loser {
-				return dc.color
+				idxs = append(idxs, ci)
+				break
 			}
 		}
 	}
-	return neutralColor
+	return idxs
 }
