@@ -1,6 +1,7 @@
 BIN_DIR := bin
+SEASON ?= $(shell date +%Y)
 
-.PHONY: build cycle stats test vet clean
+.PHONY: build cycle stats test vet clean scrape-cfb
 
 build: cycle stats
 
@@ -9,6 +10,9 @@ cycle:
 
 stats:
 	go build -o $(BIN_DIR)/stats ./cmd/stats
+
+scrape-cfb:
+	PYTHONPATH=scraper python -m cfb_scraper $(SEASON) $(ARGS)
 
 test:
 	go test ./...
