@@ -1,4 +1,5 @@
-// Command cycle runs the losers circle cycle for a single NFL season.
+// Command cycle runs the losers circle cycle for a single NFL season, or
+// (with -conference) a single Power 4 college football conference's season.
 package main
 
 import (
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"losers_circle/internal/cfbconf"
 	"losers_circle/internal/cycle"
 	"losers_circle/internal/cyclesvg"
 	"losers_circle/internal/nfldata"
@@ -19,6 +21,7 @@ func main() {
 	dir := flag.String("dir", "data", "directory containing season JSON files")
 	season := flag.Int("season", defaultSeason(time.Now()), "NFL season year to load (alias: -year)")
 	flag.IntVar(season, "year", *season, "NFL season year to load (alias: -season)")
+	conference := flag.String("conference", "", "load college football data for this Power 4 conference (SEC, Big Ten, ACC, Big 12) instead of NFL data")
 	maxWeek := flag.Int("week", 0, "only include games through this week (0 = all weeks)")
 	progress := flag.Bool("progress", false, "print elapsed time and nodes analyzed while solving")
 	upcoming := flag.Bool("upcoming", false, "check whether results in the current and next week's remaining games would create a cycle")
@@ -47,10 +50,20 @@ func main() {
 	}
 
 	path := filepath.Join(*dir, fmt.Sprintf("%d.json", *season))
+	if *conference != "" {
+		path = filepath.Join(*dir, "cfb", fmt.Sprintf("%d.json", *season))
+	}
 	s, err := nfldata.LoadFile(path)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
+	}
+	if *conference != "" {
+		s, err = cfbconf.FilterSeason(s, *conference)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			os.Exit(1)
+		}
 	}
 
 	upcomingGames := upcomingGames(s.Games)
@@ -79,14 +92,14 @@ func main() {
 				fmt.Fprintln(os.Stderr, "error writing graph.svg:", err)
 				os.Exit(1)
 			}
-			fmt.Fprintln(os.Stdout, "\nwrote graph.svg")
+			fmt.Fprintln(os.Stdout, "\nwrote graph.svg and graph.png")
 		}
 		if *cycleGraphSVG {
 			if err := cyclesvg.Render("cycles.svg", g, byTeam, cyclesvg.Options{OnlyCycles: true}); err != nil {
 				fmt.Fprintln(os.Stderr, "error writing cycles.svg:", err)
 				os.Exit(1)
 			}
-			fmt.Fprintln(os.Stdout, "wrote cycles.svg")
+			fmt.Fprintln(os.Stdout, "wrote cycles.svg and cycles.png")
 		}
 	}
 }
