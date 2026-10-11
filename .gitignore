@@ -12,3 +12,4 @@ profile.out
 .venv/
 
 *.svg
+*.png

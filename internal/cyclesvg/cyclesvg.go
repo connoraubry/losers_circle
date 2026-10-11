@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"html"
 	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -41,8 +42,11 @@ type Options struct {
 	OnlyCycles bool
 }
 
-// Render writes an SVG of g to path. byTeam is g.LongestByTeam()'s result,
-// used to derive the set of distinct cycles for coloring and the legend.
+// Render writes an SVG of g to path, plus a PNG of the same graph (same
+// name, .png extension) next to it. The PNG is graphviz's own rendering of
+// the graph and doesn't carry the SVG's post-processed legend. byTeam is
+// g.LongestByTeam()'s result, used to derive the set of distinct cycles for
+// coloring and the legend.
 func Render(path string, g *cycle.Graph, byTeam map[string][]string, opts Options) error {
 	cycles := dedupCycles(byTeam)
 
@@ -158,7 +162,16 @@ func Render(path string, g *cycle.Graph, byTeam map[string][]string, opts Option
 	if err != nil {
 		return fmt.Errorf("add legend: %w", err)
 	}
-	return os.WriteFile(path, out, 0o644)
+	if err := os.WriteFile(path, out, 0o644); err != nil {
+		return err
+	}
+
+	var pngBuf bytes.Buffer
+	if err := gv.Render(ctx, graph, graphviz.PNG, &pngBuf); err != nil {
+		return fmt.Errorf("render png: %w", err)
+	}
+	pngPath := strings.TrimSuffix(path, filepath.Ext(path)) + ".png"
+	return os.WriteFile(pngPath, pngBuf.Bytes(), 0o644)
 }
 
 // svgOpenTag matches the opening <svg width="..pt" height="..pt" of

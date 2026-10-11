@@ -92,14 +92,14 @@ func main() {
 				fmt.Fprintln(os.Stderr, "error writing graph.svg:", err)
 				os.Exit(1)
 			}
-			fmt.Fprintln(os.Stdout, "\nwrote graph.svg")
+			fmt.Fprintln(os.Stdout, "\nwrote graph.svg and graph.png")
 		}
 		if *cycleGraphSVG {
 			if err := cyclesvg.Render("cycles.svg", g, byTeam, cyclesvg.Options{OnlyCycles: true}); err != nil {
 				fmt.Fprintln(os.Stderr, "error writing cycles.svg:", err)
 				os.Exit(1)
 			}
-			fmt.Fprintln(os.Stdout, "wrote cycles.svg")
+			fmt.Fprintln(os.Stdout, "wrote cycles.svg and cycles.png")
 		}
 	}
 }
