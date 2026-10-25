@@ -389,6 +389,40 @@ func TestFirstCycleJoinNone(t *testing.T) {
 	}
 }
 
+func TestSweepReportsTeamJoiningExistingCycle(t *testing.T) {
+	// A, B, C already form a cycle. D has a path into that cycle (D beat
+	// A) but isn't part of it yet, since nothing points back into D. If C
+	// beats D, D joins the cycle as a new, peripheral member - even
+	// though A, B, and C were already cycled, this must still be reported.
+	s := nfldata.Season{
+		Teams: []string{"A", "B", "C", "D"},
+		Games: []nfldata.Game{
+			game("A", "B"),
+			game("B", "C"),
+			game("C", "A"),
+			game("D", "A"),
+		},
+	}
+	g := Build(s)
+
+	groupings, _, newCycleCombos, err := g.Sweep([]nfldata.Game{unplayed("C", "D", 3)})
+	if err != nil {
+		t.Fatalf("Sweep returned error: %v", err)
+	}
+	if newCycleCombos != 1 {
+		t.Fatalf("newCycleCombos = %d, want 1", newCycleCombos)
+	}
+	if len(groupings) != 1 {
+		t.Fatalf("groupings = %+v, want exactly one", groupings)
+	}
+	if want := []string{"D", "A", "B", "C"}; !reflect.DeepEqual(groupings[0].Cycle, want) {
+		t.Fatalf("Cycle = %v, want %v", groupings[0].Cycle, want)
+	}
+	if len(groupings[0].Causes) != 1 || groupings[0].Causes[0].Winner != "C" || groupings[0].Causes[0].Loser != "D" {
+		t.Fatalf("Causes = %+v, want C beating D", groupings[0].Causes)
+	}
+}
+
 func TestSweepFindsCycleAcrossCombination(t *testing.T) {
 	// A beat D already. A 4-cycle only closes if all three upcoming games
 	// go the "wrong" way (B beats A, C beats B, D beats C), out of 8

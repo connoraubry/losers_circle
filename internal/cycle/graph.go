@@ -462,13 +462,6 @@ func (g *Graph) Sweep(games []nfldata.Game) (groupings []SweepGrouping, total, n
 		return nil, 0, 0, fmt.Errorf("too many games to sweep exhaustively (%d games, max %d)", len(edges), maxSweepGames)
 	}
 
-	baseline := map[string]bool{}
-	for _, members := range groupByComponent(g.teams, g.sccID) {
-		if len(members) >= 2 {
-			baseline[groupKey(g.teams, members)] = true
-		}
-	}
-
 	found := make(map[string]SweepGrouping)
 	total = 1 << len(edges)
 	for mask := 0; mask < total; mask++ {
@@ -485,33 +478,36 @@ func (g *Graph) Sweep(games []nfldata.Game) (groupings []SweepGrouping, total, n
 		sccID := tarjanSCC(adj)
 		sizes := sccSizes(sccID)
 		maskHasNewCycle := false
-		for _, members := range groupByComponent(g.teams, sccID) {
-			if sizes[sccID[members[0]]] < 2 {
+		// Check every team individually, rather than by SCC component: a
+		// team can be newly pulled into an already-existing giant cycle as
+		// a peripheral member (sharing its component with teams that were
+		// already cycled), and findCycle's single representative loop
+		// through that component isn't guaranteed to pass through the
+		// newly-joined team at all - it can just as easily rediscover an
+		// older cycle using none of this mask's edges. Starting findCycle
+		// at the specific team that's newly in a cycle guarantees the
+		// loop actually demonstrates their new membership.
+		for teamIdx := range g.teams {
+			if sizes[sccID[teamIdx]] < 2 {
 				continue
 			}
-			if baseline[groupKey(g.teams, members)] {
+			if g.sccSize[g.sccID[teamIdx]] >= 2 {
+				// Already cycled at baseline - not a new join.
 				continue
 			}
-			cycle := findCycle(adj, sccID, sccID[members[0]], members[0])
+			cycle := findCycle(adj, sccID, sccID[teamIdx], teamIdx)
 			if cycle == nil {
 				continue
 			}
 			causes := sweepCauses(g, edges, mask, cycle)
 			if len(causes) == 0 {
-				// Every edge of this cycle already existed in g. The
-				// component's groupKey differed from baseline only because
-				// this mask's swept results pulled in extra peripheral
-				// teams around an already-existing cycle - it isn't
-				// actually new.
 				continue
 			}
 			maskHasNewCycle = true
-			// Key on the teams actually shown in Cycle, not the full SCC
-			// membership: the component can include peripheral teams that
-			// findCycle's simple loop doesn't pass through, and different
-			// masks can pull in different peripherals around the same
-			// minimal cycle, which would otherwise register as distinct
-			// groupings despite printing identically.
+			// Key on the teams actually shown in Cycle: different masks,
+			// or different newly-joining teams within the same mask, can
+			// land on the same cycle shape, which should collapse into
+			// one grouping rather than print duplicates.
 			key := groupKey(g.teams, cycle)
 			if _, ok := found[key]; ok {
 				continue
@@ -538,16 +534,6 @@ func (g *Graph) Sweep(games []nfldata.Game) (groupings []SweepGrouping, total, n
 		return strings.Join(result[i].Cycle, ",") < strings.Join(result[j].Cycle, ",")
 	})
 	return result, total, newCycleCombos, nil
-}
-
-// groupByComponent buckets team indices by their component id (from comp,
-// as returned by tarjanSCC), keyed by component id.
-func groupByComponent(teams []string, comp []int) map[int][]int {
-	groups := make(map[int][]int)
-	for i := range teams {
-		groups[comp[i]] = append(groups[comp[i]], i)
-	}
-	return groups
 }
 
 // groupKey returns a stable key identifying a set of team indices,
