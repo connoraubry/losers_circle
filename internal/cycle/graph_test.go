@@ -271,9 +271,10 @@ func TestPotentialCyclesNoPath(t *testing.T) {
 	}
 }
 
-func TestFirstLossIntoCycleSkipsEarlierSafeGame(t *testing.T) {
+func TestFirstCycleJoinSkipsEarlierSafeGame(t *testing.T) {
 	// A already beat B and C. A's first scheduled game, against D (no path
-	// back to D yet), is safe; its second, against B, would close A->B->A.
+	// back to D yet), is safe either way; its second, against B, would
+	// close A->B->A if B wins.
 	s := nfldata.Season{
 		Teams: []string{"A", "B", "C", "D"},
 		Games: []nfldata.Game{
@@ -287,19 +288,93 @@ func TestFirstLossIntoCycleSkipsEarlierSafeGame(t *testing.T) {
 		unplayed("A", "D", 3),
 		unplayed("B", "A", 4),
 	}
-	pc := g.FirstLossIntoCycle("A", sched)
-	if pc == nil {
-		t.Fatalf("FirstLossIntoCycle(A) = nil, want the week 4 game against B")
+	already, cond := g.FirstCycleJoin("A", sched)
+	if already {
+		t.Fatalf("FirstCycleJoin(A) already = true, want false")
 	}
-	if pc.Game.Week != 4 || pc.Winner != "B" || pc.Loser != "A" {
-		t.Fatalf("FirstLossIntoCycle(A) = %+v, want week 4, B beating A", pc)
+	if cond == nil || len(cond.Causes) != 1 {
+		t.Fatalf("FirstCycleJoin(A) = %+v, want a single-cause condition", cond)
 	}
-	if want := []string{"A", "B"}; !reflect.DeepEqual(pc.Cycle, want) {
-		t.Fatalf("Cycle = %v, want %v", pc.Cycle, want)
+	c := cond.Causes[0]
+	if c.Game.Week != 4 || c.Winner != "B" || c.Loser != "A" {
+		t.Fatalf("Causes[0] = %+v, want week 4, B beating A", c)
+	}
+	if want := []string{"A", "B"}; !reflect.DeepEqual(cond.Cycle, want) {
+		t.Fatalf("Cycle = %v, want %v", cond.Cycle, want)
 	}
 }
 
-func TestFirstLossIntoCycleNone(t *testing.T) {
+func TestFirstCycleJoinWinCase(t *testing.T) {
+	// A already beat B (winless team B). A win over A would close A->B->A.
+	s := nfldata.Season{
+		Teams: []string{"A", "B"},
+		Games: []nfldata.Game{
+			game("A", "B"),
+		},
+	}
+	g := Build(s)
+
+	_, cond := g.FirstCycleJoin("B", []nfldata.Game{unplayed("B", "A", 3)})
+	if cond == nil || len(cond.Causes) != 1 {
+		t.Fatalf("FirstCycleJoin(B) = %+v, want a single-cause condition", cond)
+	}
+	c := cond.Causes[0]
+	if c.Winner != "B" || c.Loser != "A" {
+		t.Fatalf("Causes[0] = %+v, want B beating A", c)
+	}
+}
+
+func TestFirstCycleJoinAlreadyInCycle(t *testing.T) {
+	s := nfldata.Season{
+		Teams: []string{"A", "B"},
+		Games: []nfldata.Game{
+			game("A", "B"),
+			game("B", "A"),
+		},
+	}
+	g := Build(s)
+
+	already, cond := g.FirstCycleJoin("A", nil)
+	if !already || cond != nil {
+		t.Fatalf("FirstCycleJoin(A) = (%v, %+v), want (true, nil)", already, cond)
+	}
+}
+
+func TestFirstCycleJoinNeedsPairOfResults(t *testing.T) {
+	// X already has a path to Y (X->M->Y). A beats X and loses to Y would
+	// close A->X->M->Y->A; neither result alone closes anything.
+	s := nfldata.Season{
+		Teams: []string{"A", "X", "M", "Y"},
+		Games: []nfldata.Game{
+			game("X", "M"),
+			game("M", "Y"),
+		},
+	}
+	g := Build(s)
+
+	sched := []nfldata.Game{
+		unplayed("A", "X", 3),
+		unplayed("Y", "A", 5),
+	}
+	already, cond := g.FirstCycleJoin("A", sched)
+	if already {
+		t.Fatalf("FirstCycleJoin(A) already = true, want false")
+	}
+	if cond == nil || len(cond.Causes) != 2 {
+		t.Fatalf("FirstCycleJoin(A) = %+v, want a two-cause condition", cond)
+	}
+	if cond.Causes[0].Winner != "A" || cond.Causes[0].Loser != "X" {
+		t.Fatalf("Causes[0] = %+v, want A beating X", cond.Causes[0])
+	}
+	if cond.Causes[1].Winner != "Y" || cond.Causes[1].Loser != "A" {
+		t.Fatalf("Causes[1] = %+v, want Y beating A", cond.Causes[1])
+	}
+	if want := []string{"A", "X", "M", "Y"}; !reflect.DeepEqual(cond.Cycle, want) {
+		t.Fatalf("Cycle = %v, want %v", cond.Cycle, want)
+	}
+}
+
+func TestFirstCycleJoinNone(t *testing.T) {
 	s := nfldata.Season{
 		Teams: []string{"A", "B", "C"},
 		Games: []nfldata.Game{
@@ -308,8 +383,9 @@ func TestFirstLossIntoCycleNone(t *testing.T) {
 	}
 	g := Build(s)
 
-	if pc := g.FirstLossIntoCycle("A", []nfldata.Game{unplayed("A", "C", 3)}); pc != nil {
-		t.Fatalf("FirstLossIntoCycle(A) = %+v, want nil (no path from A to C yet)", pc)
+	already, cond := g.FirstCycleJoin("A", []nfldata.Game{unplayed("A", "C", 3)})
+	if already || cond != nil {
+		t.Fatalf("FirstCycleJoin(A) = (%v, %+v), want (false, nil) (no path from C to A yet)", already, cond)
 	}
 }
 

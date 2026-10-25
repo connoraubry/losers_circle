@@ -262,33 +262,152 @@ func (g *Graph) PotentialCycles(games []nfldata.Game) []PotentialCycle {
 	return result
 }
 
-// FirstLossIntoCycle scans team's games, in the order given, for the first
-// unplayed one against an opponent that team already has a win-path to: a
-// loss there would close that path into a cycle immediately, regardless of
-// any other unplayed game. It returns nil if no such game appears in games.
-// Games not involving team, or already played, are skipped; callers
-// typically pass a team's full remaining schedule in chronological order.
-func (g *Graph) FirstLossIntoCycle(team string, games []nfldata.Game) *PotentialCycle {
-	for _, game := range games {
-		if game.Played() {
+// JoinCause is one still-unplayed result, from a team's own remaining
+// schedule, required for a JoinCondition.
+type JoinCause struct {
+	Game   nfldata.Game
+	Winner string
+	Loser  string
+}
+
+// JoinCondition is the smallest set of a team's own remaining results
+// that, together, guarantee the team joins a cycle no matter how every
+// other one of their remaining games turns out. Causes is sorted
+// chronologically. Cycle is one example loop the team ends up in once
+// Causes happen (the last beat the first, matching Longest's convention).
+type JoinCondition struct {
+	Causes []JoinCause
+	Cycle  []string
+}
+
+// FirstCycleJoin finds the smallest set of results from team's own
+// remaining games (games not involving team are ignored) that would
+// guarantee team joins a cycle, regardless of how every other one of
+// team's remaining games turns out.
+//
+// Every candidate new edge touches team, since it's one side of team's
+// own game. A simple cycle visits each node once, using exactly one
+// outgoing and one incoming edge per node on it - so a simple cycle
+// through team can use at most one new outgoing edge (team winning one of
+// its games) and one new incoming edge (team losing one of its games);
+// any further new edge would have to revisit team mid-cycle. That caps
+// the search at single games or pairs of games rather than a
+// combinatorial sweep over the whole schedule:
+//   - a single result closes a cycle if team already has a baseline path
+//     to (or from) that opponent, so the new edge just closes the loop;
+//   - failing that, a pair - one win, one loss, against two different
+//     (possibly the same, if they play twice) opponents - closes a cycle
+//     if those two opponents already have a baseline path between them.
+//
+// Among several options of the same size, the one whose required game(s)
+// complete soonest, chronologically, is preferred.
+//
+// It returns (true, nil) if team is already part of a cycle, or (false,
+// nil) if no combination of team's remaining games can guarantee one.
+func (g *Graph) FirstCycleJoin(team string, games []nfldata.Game) (already bool, cond *JoinCondition) {
+	idx, ok := g.index[team]
+	if !ok {
+		return false, nil
+	}
+	if g.sccSize[g.sccID[idx]] >= 2 {
+		return true, nil
+	}
+
+	type remainingGame struct {
+		opp  string
+		game nfldata.Game
+	}
+	var remaining []remainingGame
+	for _, gm := range games {
+		if gm.Played() {
 			continue
 		}
-		var opponent string
+		var opp string
 		switch {
-		case game.HomeTeam == team:
-			opponent = game.AwayTeam
-		case game.AwayTeam == team:
-			opponent = game.HomeTeam
+		case gm.HomeTeam == team:
+			opp = gm.AwayTeam
+		case gm.AwayTeam == team:
+			opp = gm.HomeTeam
 		default:
 			continue
 		}
-		path := g.ShortestPath(team, opponent)
-		if path == nil {
+		if _, ok := g.index[opp]; !ok {
 			continue
 		}
-		return &PotentialCycle{Game: game, Winner: opponent, Loser: team, Cycle: path}
+		remaining = append(remaining, remainingGame{opp: opp, game: gm})
 	}
-	return nil
+
+	consider := func(best, candidate *JoinCondition) *JoinCondition {
+		if best == nil || gameChronoLess(latestCauseGame(candidate.Causes), latestCauseGame(best.Causes)) {
+			return candidate
+		}
+		return best
+	}
+
+	var best *JoinCondition
+	for _, r := range remaining {
+		if path := g.ShortestPath(r.opp, team); path != nil {
+			best = consider(best, &JoinCondition{
+				Causes: []JoinCause{{Game: r.game, Winner: team, Loser: r.opp}},
+				Cycle:  path,
+			})
+		}
+		if path := g.ShortestPath(team, r.opp); path != nil {
+			best = consider(best, &JoinCondition{
+				Causes: []JoinCause{{Game: r.game, Winner: r.opp, Loser: team}},
+				Cycle:  path,
+			})
+		}
+	}
+	if best != nil {
+		return false, best
+	}
+
+	for wi, win := range remaining {
+		for li, loss := range remaining {
+			if wi == li {
+				continue
+			}
+			path := g.ShortestPath(win.opp, loss.opp)
+			if path == nil {
+				continue
+			}
+			causes := []JoinCause{
+				{Game: win.game, Winner: team, Loser: win.opp},
+				{Game: loss.game, Winner: loss.opp, Loser: team},
+			}
+			sort.Slice(causes, func(i, j int) bool { return gameChronoLess(causes[i].Game, causes[j].Game) })
+			best = consider(best, &JoinCondition{
+				Causes: causes,
+				Cycle:  append([]string{team}, path...),
+			})
+		}
+	}
+	return false, best
+}
+
+// gameChronoLess reports whether a is scheduled before b.
+func gameChronoLess(a, b nfldata.Game) bool {
+	if a.Week != b.Week {
+		return a.Week < b.Week
+	}
+	if a.Date != b.Date {
+		return a.Date < b.Date
+	}
+	return a.Time < b.Time
+}
+
+// latestCauseGame returns the most chronologically distant game among
+// causes, i.e. the last piece of information needed for the condition to
+// be fully resolved.
+func latestCauseGame(causes []JoinCause) nfldata.Game {
+	latest := causes[0].Game
+	for _, c := range causes[1:] {
+		if gameChronoLess(latest, c.Game) {
+			latest = c.Game
+		}
+	}
+	return latest
 }
 
 // maxSweepGames caps how many games Sweep will exhaustively enumerate
