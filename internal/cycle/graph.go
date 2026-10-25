@@ -262,6 +262,35 @@ func (g *Graph) PotentialCycles(games []nfldata.Game) []PotentialCycle {
 	return result
 }
 
+// FirstLossIntoCycle scans team's games, in the order given, for the first
+// unplayed one against an opponent that team already has a win-path to: a
+// loss there would close that path into a cycle immediately, regardless of
+// any other unplayed game. It returns nil if no such game appears in games.
+// Games not involving team, or already played, are skipped; callers
+// typically pass a team's full remaining schedule in chronological order.
+func (g *Graph) FirstLossIntoCycle(team string, games []nfldata.Game) *PotentialCycle {
+	for _, game := range games {
+		if game.Played() {
+			continue
+		}
+		var opponent string
+		switch {
+		case game.HomeTeam == team:
+			opponent = game.AwayTeam
+		case game.AwayTeam == team:
+			opponent = game.HomeTeam
+		default:
+			continue
+		}
+		path := g.ShortestPath(team, opponent)
+		if path == nil {
+			continue
+		}
+		return &PotentialCycle{Game: game, Winner: opponent, Loser: team, Cycle: path}
+	}
+	return nil
+}
+
 // maxSweepGames caps how many games Sweep will exhaustively enumerate
 // (2^n combinations); a real NFL week never comes close to this.
 const maxSweepGames = 20

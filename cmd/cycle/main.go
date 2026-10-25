@@ -28,6 +28,7 @@ func main() {
 	sweep := flag.Bool("sweep", false, "exhaustively check every combination of results in the current week's remaining games for new cycles")
 	sweepNext := flag.Bool("sweep-next", false, "exhaustively check every combination of results in the next full week for new cycles")
 	sweepAll := flag.Bool("sweep-all", false, "print every distinct cycle grouping found by -sweep/-sweep-next, not just the top ones")
+	firstCycleLoss := flag.String("first-cycle-loss", "", "team abbreviation: find the first upcoming game whose loss would already close a cycle")
 	graphSVG := flag.Bool("graph", false, "write the full win/loss graph to graph.svg")
 	cycleGraphSVG := flag.Bool("cycle-graph", false, "write only the teams/edges on an existing cycle to cycles.svg")
 	flag.Parse()
@@ -46,6 +47,10 @@ func main() {
 	}
 	if *sweepAll && !*sweep && !*sweepNext {
 		fmt.Fprintln(os.Stderr, "error: -sweep-all requires -sweep or -sweep-next")
+		os.Exit(1)
+	}
+	if *firstCycleLoss != "" && *maxWeek > 0 {
+		fmt.Fprintln(os.Stderr, "error: -first-cycle-loss cannot be combined with -week")
 		os.Exit(1)
 	}
 
@@ -83,6 +88,9 @@ func main() {
 	}
 	if *sweepNext {
 		printSweep(os.Stdout, g, nextWeekGames, *sweepAll)
+	}
+	if *firstCycleLoss != "" {
+		printFirstCycleLoss(os.Stdout, g, s.Games, *firstCycleLoss)
 	}
 
 	if *graphSVG || *cycleGraphSVG {
@@ -202,6 +210,47 @@ func printPotentialCycles(w *os.File, g *cycle.Graph, games []nfldata.Game) {
 			pc.Game.Week, pc.Game.AwayTeam, pc.Game.HomeTeam, pc.Game.Date,
 			pc.Winner, strings.Join(pc.Cycle, " -> "))
 	}
+}
+
+// teamGames returns every game involving team, sorted chronologically
+// (played and unplayed alike; callers typically only care about the first
+// unplayed one).
+func teamGames(games []nfldata.Game, team string) []nfldata.Game {
+	var result []nfldata.Game
+	for _, gm := range games {
+		if gm.HomeTeam == team || gm.AwayTeam == team {
+			result = append(result, gm)
+		}
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].Week != result[j].Week {
+			return result[i].Week < result[j].Week
+		}
+		if result[i].Date != result[j].Date {
+			return result[i].Date < result[j].Date
+		}
+		return result[i].Time < result[j].Time
+	})
+	return result
+}
+
+// printFirstCycleLoss reports the first unplayed game on team's remaining
+// schedule whose loss would already close a cycle in the current win graph.
+func printFirstCycleLoss(w *os.File, g *cycle.Graph, games []nfldata.Game, team string) {
+	sched := teamGames(games, team)
+	if len(sched) == 0 {
+		fmt.Fprintf(w, "\nfirst cycle-closing loss for %s: no games found for that team\n", team)
+		return
+	}
+
+	pc := g.FirstLossIntoCycle(team, sched)
+	if pc == nil {
+		fmt.Fprintf(w, "\nfirst cycle-closing loss for %s: none of their remaining games would close a cycle yet\n", team)
+		return
+	}
+	fmt.Fprintf(w, "\nfirst cycle-closing loss for %s: week %d, %s @ %s (%s): if %s beats %s, closes %s\n",
+		team, pc.Game.Week, pc.Game.AwayTeam, pc.Game.HomeTeam, pc.Game.Date,
+		pc.Winner, pc.Loser, strings.Join(pc.Cycle, " -> "))
 }
 
 // currentWeekGames returns the unplayed games in the earliest week that has
