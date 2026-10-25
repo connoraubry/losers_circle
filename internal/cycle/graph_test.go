@@ -271,6 +271,48 @@ func TestPotentialCyclesNoPath(t *testing.T) {
 	}
 }
 
+func TestFirstLossIntoCycleSkipsEarlierSafeGame(t *testing.T) {
+	// A already beat B and C. A's first scheduled game, against D (no path
+	// back to D yet), is safe; its second, against B, would close A->B->A.
+	s := nfldata.Season{
+		Teams: []string{"A", "B", "C", "D"},
+		Games: []nfldata.Game{
+			game("A", "B"),
+			game("A", "C"),
+		},
+	}
+	g := Build(s)
+
+	sched := []nfldata.Game{
+		unplayed("A", "D", 3),
+		unplayed("B", "A", 4),
+	}
+	pc := g.FirstLossIntoCycle("A", sched)
+	if pc == nil {
+		t.Fatalf("FirstLossIntoCycle(A) = nil, want the week 4 game against B")
+	}
+	if pc.Game.Week != 4 || pc.Winner != "B" || pc.Loser != "A" {
+		t.Fatalf("FirstLossIntoCycle(A) = %+v, want week 4, B beating A", pc)
+	}
+	if want := []string{"A", "B"}; !reflect.DeepEqual(pc.Cycle, want) {
+		t.Fatalf("Cycle = %v, want %v", pc.Cycle, want)
+	}
+}
+
+func TestFirstLossIntoCycleNone(t *testing.T) {
+	s := nfldata.Season{
+		Teams: []string{"A", "B", "C"},
+		Games: []nfldata.Game{
+			game("A", "B"),
+		},
+	}
+	g := Build(s)
+
+	if pc := g.FirstLossIntoCycle("A", []nfldata.Game{unplayed("A", "C", 3)}); pc != nil {
+		t.Fatalf("FirstLossIntoCycle(A) = %+v, want nil (no path from A to C yet)", pc)
+	}
+}
+
 func TestSweepFindsCycleAcrossCombination(t *testing.T) {
 	// A beat D already. A 4-cycle only closes if all three upcoming games
 	// go the "wrong" way (B beats A, C beats B, D beats C), out of 8
