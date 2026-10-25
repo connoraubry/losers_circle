@@ -329,6 +329,35 @@ func TestSweepExcludesExistingCycle(t *testing.T) {
 	}
 }
 
+func TestSweepExcludesPeripheralComponentGrowth(t *testing.T) {
+	// A->B->C->A is already a cycle. Sweeping in D via D beating A and C
+	// beating D only grows the SCC with a peripheral team; it doesn't
+	// change the fact that A->B->C->A was already a cycle, so it must not
+	// be reported as a new grouping.
+	s := nfldata.Season{
+		Teams: []string{"A", "B", "C", "D"},
+		Games: []nfldata.Game{
+			game("A", "B"),
+			game("B", "C"),
+			game("C", "A"),
+		},
+	}
+	g := Build(s)
+
+	groupings, _, _, err := g.Sweep([]nfldata.Game{
+		unplayed("D", "A", 2),
+		unplayed("C", "D", 2),
+	})
+	if err != nil {
+		t.Fatalf("Sweep returned error: %v", err)
+	}
+	for _, sg := range groupings {
+		if len(sg.Causes) == 0 {
+			t.Fatalf("grouping %v has no causes - false positive new cycle", sg.Cycle)
+		}
+	}
+}
+
 func TestSweepTooManyGames(t *testing.T) {
 	s := nfldata.Season{Teams: []string{"A", "B"}, Games: nil}
 	g := Build(s)

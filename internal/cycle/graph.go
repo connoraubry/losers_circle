@@ -348,6 +348,15 @@ func (g *Graph) Sweep(games []nfldata.Game) (groupings []SweepGrouping, total, n
 			if cycle == nil {
 				continue
 			}
+			causes := sweepCauses(g, edges, mask, cycle)
+			if len(causes) == 0 {
+				// Every edge of this cycle already existed in g. The
+				// component's groupKey differed from baseline only because
+				// this mask's swept results pulled in extra peripheral
+				// teams around an already-existing cycle - it isn't
+				// actually new.
+				continue
+			}
 			maskHasNewCycle = true
 			// Key on the teams actually shown in Cycle, not the full SCC
 			// membership: the component can include peripheral teams that
@@ -363,7 +372,7 @@ func (g *Graph) Sweep(games []nfldata.Game) (groupings []SweepGrouping, total, n
 			for i, idx := range cycle {
 				teams[i] = g.teams[idx]
 			}
-			found[key] = SweepGrouping{Cycle: teams, Causes: sweepCauses(g, edges, mask, cycle)}
+			found[key] = SweepGrouping{Cycle: teams, Causes: causes}
 		}
 		if maskHasNewCycle {
 			newCycleCombos++
