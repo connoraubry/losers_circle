@@ -313,6 +313,32 @@ func printNextJoin(w *os.File, g *cycle.Graph, games []nfldata.Game, byTeam map[
 			pc.Game.Week, pc.Game.AwayTeam, pc.Game.HomeTeam, pc.Game.Date,
 			pc.Winner, strings.Join(pc.Cycle, " -> "), len(pc.Cycle))
 	}
+
+	if len(nextGames) < 2 {
+		return
+	}
+	groupings, _, _, err := g.SweepLongest(nextGames)
+	if err != nil {
+		fmt.Fprintf(w, "\ncombined outcomes across those next games: %v\n", err)
+		return
+	}
+	fmt.Fprintln(w, "\ncombined outcomes across those next games that would create a bigger cycle:")
+	shown := false
+	for _, sg := range groupings {
+		if len(sg.Causes) < 2 {
+			// Already covered by the single-game listing above.
+			continue
+		}
+		shown = true
+		causes := make([]string, len(sg.Causes))
+		for i, c := range sg.Causes {
+			causes[i] = fmt.Sprintf("%s beats %s", c.Winner, c.Loser)
+		}
+		fmt.Fprintf(w, "  %s (%d teams): if %s\n", strings.Join(sg.Cycle, " -> "), len(sg.Cycle), strings.Join(causes, ", "))
+	}
+	if !shown {
+		fmt.Fprintln(w, "  none: no combination of those results closes a cycle bigger than joining one at a time")
+	}
 }
 
 // currentWeekGames returns the unplayed games in the earliest week that has

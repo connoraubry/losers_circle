@@ -497,8 +497,27 @@ type SweepGrouping struct {
 // mutually entangled in a cycle, which g alone doesn't already show, along
 // with the number of combinations actually enumerated and how many of those
 // combinations produce at least one new cycle. It returns an error if games
-// is larger than can be swept exhaustively.
+// is larger than can be swept exhaustively. Cycle is merely one witness
+// loop through the grouping's teams, not necessarily the longest one - see
+// SweepLongest if that matters and games is small enough to afford it.
 func (g *Graph) Sweep(games []nfldata.Game) (groupings []SweepGrouping, total, newCycleCombos int, err error) {
+	return g.sweep(games, findCycle)
+}
+
+// SweepLongest behaves like Sweep, but reports the longest cycle through
+// each grouping rather than just the first one found. That requires an
+// exhaustive per-mask search (bounded by the size of the team's strongly
+// connected component, same as Longest), which is too slow across the
+// thousands of combinations a full week's Sweep can produce - only use
+// this with a small number of games, e.g. the handful of games checked by
+// -next-join.
+func (g *Graph) SweepLongest(games []nfldata.Game) (groupings []SweepGrouping, total, newCycleCombos int, err error) {
+	return g.sweep(games, longestCycle)
+}
+
+// sweep is the shared implementation behind Sweep and SweepLongest; they
+// differ only in how a cycle through a given team is found.
+func (g *Graph) sweep(games []nfldata.Game, cycleOf func(adj [][]int, sccID []int, comp, start, compSize int) []int) (groupings []SweepGrouping, total, newCycleCombos int, err error) {
 	var edges []sweepEdge
 	for _, gm := range games {
 		hi, ok := g.index[gm.HomeTeam]
@@ -537,21 +556,22 @@ func (g *Graph) Sweep(games []nfldata.Game) (groupings []SweepGrouping, total, n
 		// Check every team individually, rather than by SCC component: a
 		// team can be newly pulled into an already-existing giant cycle as
 		// a peripheral member (sharing its component with teams that were
-		// already cycled), and findCycle's single representative loop
+		// already cycled), and cycleOf's single representative loop
 		// through that component isn't guaranteed to pass through the
 		// newly-joined team at all - it can just as easily rediscover an
-		// older cycle using none of this mask's edges. Starting findCycle
+		// older cycle using none of this mask's edges. Starting cycleOf
 		// at the specific team that's newly in a cycle guarantees the
 		// loop actually demonstrates their new membership.
 		for teamIdx := range g.teams {
-			if sizes[sccID[teamIdx]] < 2 {
+			comp := sccID[teamIdx]
+			if sizes[comp] < 2 {
 				continue
 			}
 			if g.sccSize[g.sccID[teamIdx]] >= 2 {
 				// Already cycled at baseline - not a new join.
 				continue
 			}
-			cycle := findCycle(adj, sccID, sccID[teamIdx], teamIdx)
+			cycle := cycleOf(adj, sccID, comp, teamIdx, sizes[comp])
 			if cycle == nil {
 				continue
 			}
@@ -606,7 +626,9 @@ func groupKey(teams []string, members []int) string {
 // findCycle returns one directed cycle through comp starting and ending at
 // start, using only edges within comp, or nil if none is found (shouldn't
 // happen for a component of size >= 2, since it's strongly connected).
-func findCycle(adj [][]int, sccID []int, comp, start int) []int {
+// compSize is unused; it's only present so findCycle matches longestCycle's
+// signature for use as a Sweep cycleOf callback.
+func findCycle(adj [][]int, sccID []int, comp, start, compSize int) []int {
 	visited := map[int]bool{start: true}
 	path := []int{start}
 
@@ -636,6 +658,43 @@ func findCycle(adj [][]int, sccID []int, comp, start int) []int {
 		return path
 	}
 	return nil
+}
+
+// longestCycle returns the longest directed cycle through comp starting
+// and ending at start, using only edges within comp, or nil if none is
+// found. compSize bounds the search's pruning, as in longestIdx. This is
+// exponential in compSize, so it's only suitable when the component is
+// small or the caller only invokes it a handful of times.
+func longestCycle(adj [][]int, sccID []int, comp, start, compSize int) []int {
+	var best []int
+	visited := uint32(1) << start
+	path := make([]int, 0, compSize)
+	path = append(path, start)
+
+	var dfs func(cur int, visited uint32, path []int)
+	dfs = func(cur int, visited uint32, path []int) {
+		if len(path)+(compSize-bits.OnesCount32(visited)) <= len(best) {
+			return
+		}
+		for _, nb := range adj[cur] {
+			if sccID[nb] != comp {
+				continue
+			}
+			if nb == start {
+				if len(path) > len(best) {
+					best = append([]int(nil), path...)
+				}
+				continue
+			}
+			bit := uint32(1) << nb
+			if visited&bit != 0 {
+				continue
+			}
+			dfs(nb, visited|bit, append(path, nb))
+		}
+	}
+	dfs(start, visited, path)
+	return best
 }
 
 // sweepEdge is one unplayed game under consideration by Sweep, with its
