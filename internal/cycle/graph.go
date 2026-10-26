@@ -225,6 +225,60 @@ func (g *Graph) ShortestPath(from, to string) []string {
 	return result
 }
 
+// LongestPath returns the longest simple directed path from `from` to `to`
+// (inclusive of both endpoints), or nil if no path exists. Unlike
+// ShortestPath, the search isn't limited to a single strongly connected
+// component, since `from` and `to` need not be mutually reachable yet.
+func (g *Graph) LongestPath(from, to string) []string {
+	fi, ok := g.index[from]
+	if !ok {
+		return nil
+	}
+	ti, ok := g.index[to]
+	if !ok {
+		return nil
+	}
+
+	n := len(g.teams)
+	var best []int
+
+	visited := uint32(1) << fi
+	path := make([]int, 0, n)
+	path = append(path, fi)
+
+	var dfs func(cur int, visited uint32, path []int)
+	dfs = func(cur int, visited uint32, path []int) {
+		if cur == ti {
+			if len(path) > len(best) {
+				best = append([]int(nil), path...)
+			}
+			return
+		}
+		// Even using every unvisited team, we couldn't beat the best path
+		// found so far.
+		if len(path)+(n-bits.OnesCount32(visited)) <= len(best) {
+			return
+		}
+		for _, nb := range g.adj[cur] {
+			bit := uint32(1) << nb
+			if visited&bit != 0 {
+				continue
+			}
+			dfs(nb, visited|bit, append(path, nb))
+		}
+	}
+	dfs(fi, visited, path)
+
+	if best == nil {
+		return nil
+	}
+	result := make([]string, len(best))
+	for i, idx := range best {
+		result[i] = g.teams[idx]
+	}
+	return result
+}
+
 // PotentialCycle describes an unplayed game where Winner beating Loser
 // would create a new cycle in the win graph. Cycle is the resulting loop
 // (Loser beat the next, ..., the last beat Loser), matching the ordering
@@ -240,6 +294,8 @@ type PotentialCycle struct {
 // one PotentialCycle per possible outcome (home win, away win) that would
 // close a new cycle: a result W-beats-L creates a cycle exactly when a path
 // L -> ... -> W already exists in g, since the new edge W->L closes it.
+// Cycle is the longest such path, not merely the first one found, so it
+// reflects the biggest cycle that result would close on its own.
 // Already-played games are skipped.
 func (g *Graph) PotentialCycles(games []nfldata.Game) []PotentialCycle {
 	var result []PotentialCycle
@@ -252,7 +308,7 @@ func (g *Graph) PotentialCycles(games []nfldata.Game) []PotentialCycle {
 			{game.AwayTeam, game.HomeTeam},
 		} {
 			winner, loser := outcome[0], outcome[1]
-			path := g.ShortestPath(loser, winner)
+			path := g.LongestPath(loser, winner)
 			if path == nil {
 				continue
 			}
