@@ -40,6 +40,11 @@ type Options struct {
 	// member teams and the edges that form each loop - instead of the
 	// full win/loss graph.
 	OnlyCycles bool
+	// TrimNonCycleEdges renders the full win/loss graph, but drops any
+	// edge between two teams that are both on some cycle unless that edge
+	// is itself part of a cycle. Edges touching a team on no cycle at all
+	// are left untouched. Ignored if OnlyCycles is set.
+	TrimNonCycleEdges bool
 }
 
 // Render writes an SVG of g to path, plus a PNG of the same graph (same
@@ -127,10 +132,21 @@ func Render(path string, g *cycle.Graph, byTeam map[string][]string, opts Option
 			}
 		}
 	} else {
+		inCycle := map[string]bool{}
+		if opts.TrimNonCycleEdges {
+			for _, dc := range cycles {
+				for _, t := range dc.teams {
+					inCycle[t] = true
+				}
+			}
+		}
 		for _, e := range g.Edges() {
 			winner, loser := e[0], e[1]
 			idxs := cyclesWithEdge(cycles, winner, loser)
 			if len(idxs) == 0 {
+				if opts.TrimNonCycleEdges && inCycle[winner] && inCycle[loser] {
+					continue
+				}
 				if err := addEdge(winner, loser, neutralColor, ""); err != nil {
 					return err
 				}

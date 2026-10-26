@@ -31,6 +31,7 @@ func main() {
 	firstCycleJoin := flag.String("first-cycle-join", "", "team abbreviation: find the smallest set of that team's own remaining results that would guarantee it joins a cycle")
 	graphSVG := flag.Bool("graph", false, "write the full win/loss graph to graph.svg")
 	cycleGraphSVG := flag.Bool("cycle-graph", false, "write only the teams/edges on an existing cycle to cycles.svg")
+	trimGraphSVG := flag.Bool("trim-graph", false, "write the full win/loss graph to trim.svg, dropping non-cycle edges between two teams that are both on a cycle")
 	flag.Parse()
 
 	if *upcoming && *maxWeek > 0 {
@@ -93,7 +94,7 @@ func main() {
 		printFirstCycleJoin(os.Stdout, g, s.Games, *firstCycleJoin)
 	}
 
-	if *graphSVG || *cycleGraphSVG {
+	if *graphSVG || *cycleGraphSVG || *trimGraphSVG {
 		byTeam := g.LongestByTeam()
 		if *graphSVG {
 			if err := cyclesvg.Render("graph.svg", g, byTeam, cyclesvg.Options{}); err != nil {
@@ -108,6 +109,13 @@ func main() {
 				os.Exit(1)
 			}
 			fmt.Fprintln(os.Stdout, "wrote cycles.svg and cycles.png")
+		}
+		if *trimGraphSVG {
+			if err := cyclesvg.Render("trim.svg", g, byTeam, cyclesvg.Options{TrimNonCycleEdges: true}); err != nil {
+				fmt.Fprintln(os.Stderr, "error writing trim.svg:", err)
+				os.Exit(1)
+			}
+			fmt.Fprintln(os.Stdout, "wrote trim.svg and trim.png")
 		}
 	}
 }
