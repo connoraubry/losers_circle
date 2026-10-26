@@ -29,6 +29,7 @@ func main() {
 	sweepNext := flag.Bool("sweep-next", false, "exhaustively check every combination of results in the next full week for new cycles")
 	sweepAll := flag.Bool("sweep-all", false, "print every distinct cycle grouping found by -sweep/-sweep-next, not just the top ones")
 	firstCycleJoin := flag.String("first-cycle-join", "", "team abbreviation: find the smallest set of that team's own remaining results that would guarantee it joins a cycle")
+	nextJoin := flag.Bool("next-join", false, "for every team not yet on a cycle, check whether their own next unplayed game would join them to one")
 	graphSVG := flag.Bool("graph", false, "write the full win/loss graph to graph.svg")
 	cycleGraphSVG := flag.Bool("cycle-graph", false, "write only the teams/edges on an existing cycle to cycles.svg")
 	trimGraphSVG := flag.Bool("trim-graph", false, "write the full win/loss graph to trim.svg, dropping non-cycle edges between two teams that are both on a cycle")
@@ -79,7 +80,13 @@ func main() {
 
 	nfldata.PrintSeasonStats(os.Stdout, s)
 	g := cycle.Build(s)
-	printLongestCycles(os.Stdout, g, s.Teams, *progress)
+	var byTeam map[string][]string
+	if *progress {
+		byTeam = g.LongestByTeamProgress(os.Stderr, time.Second)
+	} else {
+		byTeam = g.LongestByTeam()
+	}
+	printLongestCycles(os.Stdout, byTeam, s.Teams)
 
 	if *upcoming {
 		printPotentialCycles(os.Stdout, g, upcomingGames)
@@ -93,9 +100,11 @@ func main() {
 	if *firstCycleJoin != "" {
 		printFirstCycleJoin(os.Stdout, g, s.Games, *firstCycleJoin)
 	}
+	if *nextJoin {
+		printNextJoin(os.Stdout, g, s.Games, byTeam)
+	}
 
 	if *graphSVG || *cycleGraphSVG || *trimGraphSVG {
-		byTeam := g.LongestByTeam()
 		if *graphSVG {
 			if err := cyclesvg.Render("graph.svg", g, byTeam, cyclesvg.Options{}); err != nil {
 				fmt.Fprintln(os.Stderr, "error writing graph.svg:", err)
@@ -122,14 +131,7 @@ func main() {
 
 // printLongestCycles prints each team's longest cycle (a loop of teams
 // where each beat the next, and the last beat the first), longest first.
-func printLongestCycles(w *os.File, g *cycle.Graph, teamNames []string, progress bool) {
-	var byTeam map[string][]string
-	if progress {
-		byTeam = g.LongestByTeamProgress(os.Stderr, time.Second)
-	} else {
-		byTeam = g.LongestByTeam()
-	}
-
+func printLongestCycles(w *os.File, byTeam map[string][]string, teamNames []string) {
 	teams := append([]string(nil), teamNames...)
 	sort.Slice(teams, func(i, j int) bool {
 		li, lj := len(byTeam[teams[i]]), len(byTeam[teams[j]])
@@ -267,6 +269,50 @@ func printFirstCycleJoin(w *os.File, g *cycle.Graph, games []nfldata.Game, team 
 	}
 	fmt.Fprintf(w, "\nfirst cycle join for %s: if %s, closes %s\n",
 		team, strings.Join(parts, " and "), strings.Join(cond.Cycle, " -> "))
+}
+
+// printNextJoin reports, for every team not currently part of any cycle,
+// whether the result of their own next unplayed game would join them to
+// one.
+func printNextJoin(w *os.File, g *cycle.Graph, games []nfldata.Game, byTeam map[string][]string) {
+	teams := g.Teams()
+	sort.Strings(teams)
+
+	var nextGames []nfldata.Game
+	seen := map[string]bool{}
+	for _, team := range teams {
+		if byTeam[team] != nil {
+			continue
+		}
+		for _, gm := range teamGames(games, team) {
+			if gm.Played() {
+				continue
+			}
+			key := fmt.Sprintf("%d-%s-%s-%s-%s", gm.Week, gm.GameType, gm.HomeTeam, gm.AwayTeam, gm.Date)
+			if !seen[key] {
+				seen[key] = true
+				nextGames = append(nextGames, gm)
+			}
+			break
+		}
+	}
+
+	fmt.Fprintln(w, "\nnext games that could join a team to a cycle:")
+	if len(nextGames) == 0 {
+		fmt.Fprintln(w, "  none: every team is already on a cycle, or has no games left")
+		return
+	}
+
+	pcs := g.PotentialCycles(nextGames)
+	if len(pcs) == 0 {
+		fmt.Fprintln(w, "  none of those teams' next games would join them to a cycle yet")
+		return
+	}
+	for _, pc := range pcs {
+		fmt.Fprintf(w, "  week %d, %s @ %s (%s): if %s wins, joins %s\n",
+			pc.Game.Week, pc.Game.AwayTeam, pc.Game.HomeTeam, pc.Game.Date,
+			pc.Winner, strings.Join(pc.Cycle, " -> "))
+	}
 }
 
 // currentWeekGames returns the unplayed games in the earliest week that has
