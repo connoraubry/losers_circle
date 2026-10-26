@@ -216,9 +216,9 @@ func printPotentialCycles(w *os.File, g *cycle.Graph, games []nfldata.Game) {
 		return
 	}
 	for _, pc := range pcs {
-		fmt.Fprintf(w, "  week %d, %s @ %s (%s): if %s wins, closes %s\n",
+		fmt.Fprintf(w, "  week %d, %s @ %s (%s): if %s wins, closes %s (%d teams)\n",
 			pc.Game.Week, pc.Game.AwayTeam, pc.Game.HomeTeam, pc.Game.Date,
-			pc.Winner, strings.Join(pc.Cycle, " -> "))
+			pc.Winner, strings.Join(pc.Cycle, " -> "), len(pc.Cycle))
 	}
 }
 
@@ -309,9 +309,9 @@ func printNextJoin(w *os.File, g *cycle.Graph, games []nfldata.Game, byTeam map[
 		return
 	}
 	for _, pc := range pcs {
-		fmt.Fprintf(w, "  week %d, %s @ %s (%s): if %s wins, joins %s\n",
+		fmt.Fprintf(w, "  week %d, %s @ %s (%s): if %s wins, joins %s (%d teams)\n",
 			pc.Game.Week, pc.Game.AwayTeam, pc.Game.HomeTeam, pc.Game.Date,
-			pc.Winner, strings.Join(pc.Cycle, " -> "))
+			pc.Winner, strings.Join(pc.Cycle, " -> "), len(pc.Cycle))
 	}
 }
 
