@@ -67,12 +67,37 @@ function render(graph) {
     for (const team of c.teams) nodeCycles.get(team).push(c.id);
   }
 
+  // Order teams around the ring by the largest cycle's own sequence (it's
+  // cycles[0] - DedupCycles sorts longest first), so that cycle draws as
+  // a single clean loop instead of a tangled ball. Any team not on it
+  // (no cycle at all, or only a smaller distinct one) is appended after,
+  // still on the same ring.
+  const order = new Map();
+  if (graph.cycles.length > 0) {
+    graph.cycles[0].teams.forEach((team, i) => order.set(team, i));
+  }
+  for (const team of graph.teams) {
+    if (!order.has(team)) order.set(team, order.size);
+  }
+
+  // Cytoscape's built-in "circle" layout takes a `sort` option, but it's
+  // broken as of 3.28 (it sorts a variable the final placement pass never
+  // reads, so nodes land in their default order regardless) - so the ring
+  // positions are computed by hand here and fed in via the "preset"
+  // layout instead.
+  const positions = {};
+  const ringSize = order.size;
+  for (const [team, idx] of order) {
+    const theta = -Math.PI / 2 + (idx * 2 * Math.PI) / ringSize; // start at top, clockwise
+    positions[team] = { x: 300 * Math.cos(theta), y: 300 * Math.sin(theta) };
+  }
+
   const elements = [];
   for (const team of graph.teams) {
     const ids = nodeCycles.get(team);
     const color = ids.length > 0 ? graph.cycles[ids[0]].color : NEUTRAL_COLOR;
     elements.push({
-      data: { id: team, cycleIds: ids, color },
+      data: { id: team, cycleIds: ids, color, order: order.get(team) },
       classes: ids.length > 0 ? "in-cycle" : "",
     });
   }
@@ -105,14 +130,10 @@ function render(graph) {
     container: document.getElementById("cy"),
     elements,
     layout: {
-      name: "cola",
-      animate: true,
-      infinite: true, // keep simulating forever: dragging a node keeps everything else moving
-      nodeSpacing: 10,
-      edgeLength: 90,
-      avoidOverlap: true,
-      handleDisconnected: true, // pulls teams on no cycle at all in toward the rest
+      name: "preset",
+      positions: (node) => positions[node.id()],
       fit: true,
+      padding: 30,
     },
     style: [
       {
