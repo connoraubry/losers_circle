@@ -7,43 +7,9 @@ const trimCheckbox = document.getElementById("trim");
 const legendEl = document.getElementById("legend");
 
 let cy = null;
-let highlightedCycle = null; // cycle id currently isolated, or null
-
-async function main() {
-  const datasets = await fetchJSON("data/datasets.json");
-  for (const d of datasets) {
-    const opt = document.createElement("option");
-    opt.value = d.key;
-    opt.textContent = d.label;
-    datasetSelect.appendChild(opt);
-  }
-  datasetSelect.addEventListener("change", () => loadGraph(datasetSelect.value));
-  trimCheckbox.addEventListener("change", applyTrim);
-  if (datasets.length > 0) {
-    datasetSelect.value = datasets[0].key;
-    loadGraph(datasets[0].key);
-  }
-}
-
-async function fetchJSON(url) {
-  const resp = await fetch(url);
-  if (!resp.ok) {
-    throw new Error(`${url}: ${resp.status}`);
-  }
-  return resp.json();
-}
-
-async function loadGraph(key) {
-  statusEl.textContent = "loading...";
-  highlightedCycle = null;
-  try {
-    const graph = await fetchJSON(`data/${encodeURIComponent(key)}.json`);
-    render(graph);
-    statusEl.textContent = `${graph.teams.length} teams, ${graph.cycles.length} distinct cycle${graph.cycles.length === 1 ? "" : "s"}`;
-  } catch (err) {
-    statusEl.textContent = `error: ${err}`;
-  }
-}
+// Current highlight, or null: either a cycle (legend click) or a node
+// (click on the graph) is isolated, never both at once.
+let selection = null; // { type: "cycle", id } | { type: "node", team }
 
 // cyclesWithEdge returns the ids of every cycle in which winner beats loser
 // consecutively - mirrors cycle.CyclesWithEdge on the Go side.
@@ -58,6 +24,29 @@ function cyclesWithEdge(cycles, winner, loser) {
     }
   }
   return ids;
+}
+
+function populateDatasetPicker() {
+  for (const d of window.DATASETS) {
+    const opt = document.createElement("option");
+    opt.value = `${d.key}.html`;
+    opt.textContent = d.label;
+    if (d.key === window.CURRENT_KEY) opt.selected = true;
+    datasetSelect.appendChild(opt);
+  }
+  // A real page navigation, not a fetch, so the browser's back/forward
+  // buttons and URL bar work normally when switching datasets.
+  datasetSelect.addEventListener("change", () => {
+    window.location.href = datasetSelect.value;
+  });
+}
+
+function main() {
+  populateDatasetPicker();
+  trimCheckbox.addEventListener("change", applyTrim);
+  render(window.GRAPH);
+  const graph = window.GRAPH;
+  statusEl.textContent = `${graph.teams.length} teams, ${graph.cycles.length} distinct cycle${graph.cycles.length === 1 ? "" : "s"}`;
 }
 
 function render(graph) {
@@ -165,17 +154,14 @@ function render(graph) {
     ],
   });
 
-  cy.on("tap", "node", (evt) => {
-    const ids = evt.target.data("cycleIds");
-    if (ids.length === 0) return;
-    isolateCycle(ids[0]);
-  });
+  cy.on("tap", "node", (evt) => selectNode(evt.target.id()));
   cy.on("tap", (evt) => {
-    if (evt.target === cy) clearHighlight();
+    if (evt.target === cy) clearSelection();
   });
 
   renderLegend(graph.cycles);
   applyTrim();
+  applyHighlight();
 }
 
 function applyTrim() {
@@ -183,26 +169,50 @@ function applyTrim() {
   cy.edges().forEach((e) => e.toggleClass("trimmed", trimCheckbox.checked && !!e.data("trimmable")));
 }
 
-function isolateCycle(cycleId) {
-  if (highlightedCycle === cycleId) {
-    clearHighlight();
+function selectNode(team) {
+  if (selection && selection.type === "node" && selection.team === team) {
+    clearSelection();
     return;
   }
-  highlightedCycle = cycleId;
-  cy.elements().forEach((el) => {
-    const ids = el.isNode() ? el.data("cycleIds") : [el.data("cycleId")];
-    const on = ids.includes(cycleId);
-    el.toggleClass("dimmed", !on);
-  });
-  document.querySelectorAll(".legend-item").forEach((item) => {
-    item.classList.toggle("dimmed", Number(item.dataset.cycleId) !== cycleId);
-  });
+  selection = { type: "node", team };
+  applyHighlight();
 }
 
-function clearHighlight() {
-  highlightedCycle = null;
-  cy.elements().removeClass("dimmed");
-  document.querySelectorAll(".legend-item").forEach((item) => item.classList.remove("dimmed"));
+function isolateCycle(cycleId) {
+  if (selection && selection.type === "cycle" && selection.id === cycleId) {
+    clearSelection();
+    return;
+  }
+  selection = { type: "cycle", id: cycleId };
+  applyHighlight();
+}
+
+function clearSelection() {
+  selection = null;
+  applyHighlight();
+}
+
+// applyHighlight dims every element except those relevant to the current
+// selection: a cycle's own members and edges, or - for a clicked node -
+// every edge touching it (plus the node itself and whichever teams are on
+// the other end of those edges), regardless of cycle membership.
+function applyHighlight() {
+  if (!cy) return;
+  let keep = null;
+  if (selection && selection.type === "cycle") {
+    keep = cy.elements().filter((el) => {
+      const ids = el.isNode() ? el.data("cycleIds") : [el.data("cycleId")];
+      return ids.includes(selection.id);
+    });
+  } else if (selection && selection.type === "node") {
+    keep = cy.getElementById(selection.team).closedNeighborhood();
+  }
+  cy.elements().forEach((el) => el.toggleClass("dimmed", !!keep && !keep.contains(el)));
+
+  document.querySelectorAll(".legend-item").forEach((item) => {
+    const isActiveCycle = selection && selection.type === "cycle" && Number(item.dataset.cycleId) === selection.id;
+    item.classList.toggle("dimmed", !!selection && !isActiveCycle);
+  });
 }
 
 function legendLabel(teams) {

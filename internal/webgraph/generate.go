@@ -1,53 +1,90 @@
 package webgraph
 
 import (
-	"encoding/json"
+	_ "embed"
+	"fmt"
+	"html/template"
 	"io/fs"
 	"os"
 	"path/filepath"
 )
 
-// edgeJSON is one "beat" edge in a dataset's graph data file.
+// edgeJSON is one "beat" edge embedded in a dataset's page.
 type edgeJSON struct {
 	Winner string `json:"winner"`
 	Loser  string `json:"loser"`
 }
 
-// cycleJSON is one distinct cycle in a dataset's graph data file.
+// cycleJSON is one distinct cycle embedded in a dataset's page.
 type cycleJSON struct {
 	ID    int      `json:"id"`
 	Color string   `json:"color"`
 	Teams []string `json:"teams"`
 }
 
-// graphJSON is a dataset's full graph data file, written to
-// data/<key>.json.
+// graphJSON is a dataset's full graph data, embedded directly into its
+// page (see pageTemplate) rather than fetched separately.
 type graphJSON struct {
 	Teams  []string    `json:"teams"`
 	Edges  []edgeJSON  `json:"edges"`
 	Cycles []cycleJSON `json:"cycles"`
 }
 
-// Generate writes c's datasets as a static site under outDir: the
-// embedded frontend (staticFS) plus one JSON data file per dataset and a
-// datasets.json index, ready to be served by any static file host.
+//go:embed templates/page.html.tmpl
+var pageTemplateSrc string
+
+var pageTemplate = template.Must(template.New("page").Parse(pageTemplateSrc))
+
+// pageData is pageTemplate's input. Datasets and Graph are plain Go
+// values (not pre-marshaled strings): html/template JSON-encodes them
+// automatically since they're used inside a <script> block.
+type pageData struct {
+	Key          string
+	CurrentLabel string
+	Datasets     []Dataset
+	Graph        graphJSON
+}
+
+// Generate writes c's datasets as a static site under outDir: one
+// self-contained HTML page per dataset (its graph data inlined, no
+// fetch required), a shared app.js/style.css, and an index.html mirroring
+// the first (newest) dataset so the site has a sensible landing page.
+// Every page is a real, separately-addressable URL - no client-side
+// routing - so browser back/forward works across datasets for free.
 func Generate(c *Cache, outDir string) error {
-	dataDir := filepath.Join(outDir, "data")
-	if err := os.MkdirAll(dataDir, 0o755); err != nil {
+	if err := os.MkdirAll(outDir, 0o755); err != nil {
 		return err
 	}
 
-	if err := writeJSONFile(filepath.Join(dataDir, "datasets.json"), c.List()); err != nil {
-		return err
-	}
-	for _, d := range c.List() {
+	datasets := c.List()
+	for _, d := range datasets {
 		entry, _ := c.Get(d.Key)
-		if err := writeJSONFile(filepath.Join(dataDir, d.Key+".json"), toGraphJSON(entry)); err != nil {
-			return err
+		if err := writePage(outDir, d.Key+".html", d, datasets, toGraphJSON(entry)); err != nil {
+			return fmt.Errorf("page %s: %w", d.Key, err)
+		}
+	}
+	if len(datasets) > 0 {
+		entry, _ := c.Get(datasets[0].Key)
+		if err := writePage(outDir, "index.html", datasets[0], datasets, toGraphJSON(entry)); err != nil {
+			return fmt.Errorf("index page: %w", err)
 		}
 	}
 
 	return copyStaticAssets(outDir)
+}
+
+func writePage(outDir, filename string, current Dataset, datasets []Dataset, graph graphJSON) error {
+	f, err := os.Create(filepath.Join(outDir, filename))
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return pageTemplate.Execute(f, pageData{
+		Key:          current.Key,
+		CurrentLabel: current.Label,
+		Datasets:     datasets,
+		Graph:        graph,
+	})
 }
 
 // toGraphJSON serializes entry's already-built graph and already-
@@ -64,16 +101,9 @@ func toGraphJSON(entry Entry) graphJSON {
 	return graphJSON{Teams: entry.Graph.Teams(), Edges: edges, Cycles: cycles}
 }
 
-func writeJSONFile(path string, v any) error {
-	b, err := json.MarshalIndent(v, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(path, b, 0o644)
-}
-
-// copyStaticAssets copies every file in the embedded frontend (staticFS)
-// into outDir, preserving its directory structure.
+// copyStaticAssets copies every file in the embedded frontend (staticFS,
+// now just app.js and style.css - index.html is generated per dataset
+// instead) into outDir, preserving its directory structure.
 func copyStaticAssets(outDir string) error {
 	return fs.WalkDir(staticFS, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
