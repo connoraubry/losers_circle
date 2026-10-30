@@ -12,7 +12,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -22,17 +21,8 @@ import (
 	"losers_circle/internal/cycle"
 )
 
-// palette is cycled through for each distinct cycle found, longest cycle
-// first, so colors stay stable and distinguishable across a typical
-// season's handful of cycles.
-var palette = []string{
-	"#e6194b", "#3cb44b", "#4363d8", "#f58231", "#911eb4",
-	"#42d4f4", "#f032e6", "#bfef45", "#fabed4", "#469990",
-	"#dcbeff", "#9a6324", "#800000", "#aaffc3", "#808000",
-}
-
 // neutralColor is used for edges/nodes not on any distinct cycle.
-const neutralColor = "#999999"
+const neutralColor = cycle.NeutralColor
 
 // Options configures Render.
 type Options struct {
@@ -53,7 +43,7 @@ type Options struct {
 // g.LongestByTeam()'s result, used to derive the set of distinct cycles for
 // coloring and the legend.
 func Render(path string, g *cycle.Graph, byTeam map[string][]string, opts Options) error {
-	cycles := dedupCycles(byTeam)
+	cycles := cycle.DedupCycles(byTeam)
 
 	ctx := context.Background()
 	gv, err := graphviz.New(ctx)
@@ -124,9 +114,9 @@ func Render(path string, g *cycle.Graph, byTeam map[string][]string, opts Option
 		// Each cycle gets its own edgeKey so a pair shared by multiple
 		// cycles still draws one line per cycle.
 		for ci, dc := range cycles {
-			for i, t := range dc.teams {
-				next := dc.teams[(i+1)%len(dc.teams)]
-				if err := addEdge(t, next, dc.color, strconv.Itoa(ci)); err != nil {
+			for i, t := range dc.Teams {
+				next := dc.Teams[(i+1)%len(dc.Teams)]
+				if err := addEdge(t, next, dc.Color, strconv.Itoa(ci)); err != nil {
 					return err
 				}
 			}
@@ -135,14 +125,14 @@ func Render(path string, g *cycle.Graph, byTeam map[string][]string, opts Option
 		inCycle := map[string]bool{}
 		if opts.TrimNonCycleEdges {
 			for _, dc := range cycles {
-				for _, t := range dc.teams {
+				for _, t := range dc.Teams {
 					inCycle[t] = true
 				}
 			}
 		}
 		for _, e := range g.Edges() {
 			winner, loser := e[0], e[1]
-			idxs := cyclesWithEdge(cycles, winner, loser)
+			idxs := cycle.CyclesWithEdge(cycles, winner, loser)
 			if len(idxs) == 0 {
 				if opts.TrimNonCycleEdges && inCycle[winner] && inCycle[loser] {
 					continue
@@ -153,7 +143,7 @@ func Render(path string, g *cycle.Graph, byTeam map[string][]string, opts Option
 				continue
 			}
 			for _, ci := range idxs {
-				if err := addEdge(winner, loser, cycles[ci].color, strconv.Itoa(ci)); err != nil {
+				if err := addEdge(winner, loser, cycles[ci].Color, strconv.Itoa(ci)); err != nil {
 					return err
 				}
 			}
@@ -199,7 +189,7 @@ var svgOpenTag = regexp.MustCompile(`<svg\s+width="([\d.]+)pt"\s+height="([\d.]+
 // height as the legend actually needs rather than leaving it wherever
 // Graphviz would otherwise place a cluster. svg is left untouched if there
 // are no cycles to show.
-func addLegend(svg []byte, cycles []distinctCycle) ([]byte, error) {
+func addLegend(svg []byte, cycles []cycle.DistinctCycle) ([]byte, error) {
 	if len(cycles) == 0 {
 		return svg, nil
 	}
@@ -250,13 +240,13 @@ func addLegend(svg []byte, cycles []distinctCycle) ([]byte, error) {
 	x, y := padding, padding
 	rowContentWidth := 0.0
 	for _, dc := range cycles {
-		label := legendLabel(dc.teams)
+		label := legendLabel(dc.Teams)
 		width := swatchSize + labelGapX + float64(len(label))*charWidth
 		if x > padding && x+width > rowMaxWidth {
 			x = padding
 			y += rowHeight
 		}
-		items = append(items, placedItem{color: dc.color, label: label, x: x, y: y})
+		items = append(items, placedItem{color: dc.Color, label: label, x: x, y: y})
 		x += width + itemGapX
 		if x-itemGapX > rowContentWidth {
 			rowContentWidth = x - itemGapX
@@ -310,76 +300,4 @@ func legendLabel(teams []string) string {
 	head := strings.Join(teams[:half], " -> ")
 	tail := strings.Join(teams[len(teams)-half:], " -> ")
 	return fmt.Sprintf("%s -> ... -> %s (%d teams)", head, tail, len(teams))
-}
-
-// distinctCycle is one deduplicated cycle used for coloring, with its
-// canonical (rotation-normalized) team order and assigned color.
-type distinctCycle struct {
-	teams []string
-	color string
-}
-
-// dedupCycles collapses byTeam's per-team longest cycles into a distinct
-// set, keyed by canonical rotation, and assigns each a palette color,
-// longest cycle first (ties broken alphabetically for determinism).
-func dedupCycles(byTeam map[string][]string) []distinctCycle {
-	seen := map[string][]string{}
-	for _, c := range byTeam {
-		if len(c) == 0 {
-			continue
-		}
-		key, canon := canonicalize(c)
-		if _, ok := seen[key]; !ok {
-			seen[key] = canon
-		}
-	}
-
-	cycles := make([]distinctCycle, 0, len(seen))
-	for _, canon := range seen {
-		cycles = append(cycles, distinctCycle{teams: canon})
-	}
-	sort.Slice(cycles, func(i, j int) bool {
-		if len(cycles[i].teams) != len(cycles[j].teams) {
-			return len(cycles[i].teams) > len(cycles[j].teams)
-		}
-		return strings.Join(cycles[i].teams, ",") < strings.Join(cycles[j].teams, ",")
-	})
-	for i := range cycles {
-		cycles[i].color = palette[i%len(palette)]
-	}
-	return cycles
-}
-
-// canonicalize rotates cycle to start at its lexicographically smallest
-// team, so equivalent loops (same sequence, different start point) produce
-// the same key.
-func canonicalize(c []string) (key string, canon []string) {
-	minIdx := 0
-	for i, t := range c {
-		if t < c[minIdx] {
-			minIdx = i
-		}
-	}
-	canon = make([]string, len(c))
-	for i := range c {
-		canon[i] = c[(minIdx+i)%len(c)]
-	}
-	return strings.Join(canon, ","), canon
-}
-
-// cyclesWithEdge returns the indexes into cycles of every distinct cycle
-// containing the consecutive pair winner->loser, in cycles' order. An edge
-// on no cycle (nil result) is neutral; an edge on several gets one colored
-// line per returned index.
-func cyclesWithEdge(cycles []distinctCycle, winner, loser string) []int {
-	var idxs []int
-	for ci, dc := range cycles {
-		for i, t := range dc.teams {
-			if t == winner && dc.teams[(i+1)%len(dc.teams)] == loser {
-				idxs = append(idxs, ci)
-				break
-			}
-		}
-	}
-	return idxs
 }
