@@ -104,7 +104,16 @@ function render(graph) {
   cy = cytoscape({
     container: document.getElementById("cy"),
     elements,
-    layout: { name: "cose", animate: false },
+    layout: {
+      name: "cola",
+      animate: true,
+      infinite: true, // keep simulating forever: dragging a node keeps everything else moving
+      nodeSpacing: 10,
+      edgeLength: 90,
+      avoidOverlap: true,
+      handleDisconnected: true, // pulls teams on no cycle at all in toward the rest
+      fit: true,
+    },
     style: [
       {
         selector: "node",
