@@ -8,6 +8,7 @@ frontend/node_modules
 
 data/*
 cache/*
+site/*
 
 profile.out
 .venv/

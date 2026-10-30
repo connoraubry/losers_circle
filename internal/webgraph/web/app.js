@@ -3,13 +3,14 @@ const MAX_LEGEND_TEAMS = 6;
 
 const statusEl = document.getElementById("status");
 const datasetSelect = document.getElementById("dataset");
+const trimCheckbox = document.getElementById("trim");
 const legendEl = document.getElementById("legend");
 
 let cy = null;
 let highlightedCycle = null; // cycle id currently isolated, or null
 
 async function main() {
-  const datasets = await fetchJSON("/api/datasets");
+  const datasets = await fetchJSON("data/datasets.json");
   for (const d of datasets) {
     const opt = document.createElement("option");
     opt.value = d.key;
@@ -17,6 +18,7 @@ async function main() {
     datasetSelect.appendChild(opt);
   }
   datasetSelect.addEventListener("change", () => loadGraph(datasetSelect.value));
+  trimCheckbox.addEventListener("change", applyTrim);
   if (datasets.length > 0) {
     datasetSelect.value = datasets[0].key;
     loadGraph(datasets[0].key);
@@ -35,7 +37,7 @@ async function loadGraph(key) {
   statusEl.textContent = "loading...";
   highlightedCycle = null;
   try {
-    const graph = await fetchJSON(`/api/graph?dataset=${encodeURIComponent(key)}`);
+    const graph = await fetchJSON(`data/${encodeURIComponent(key)}.json`);
     render(graph);
     statusEl.textContent = `${graph.teams.length} teams, ${graph.cycles.length} distinct cycle${graph.cycles.length === 1 ? "" : "s"}`;
   } catch (err) {
@@ -77,8 +79,11 @@ function render(graph) {
   for (const e of graph.edges) {
     const ids = cyclesWithEdge(graph.cycles, e.winner, e.loser);
     if (ids.length === 0) {
+      // Trimmable if both endpoints are already on some cycle: that
+      // makes this edge visual noise once the cycle itself is drawn.
+      const trimmable = nodeCycles.get(e.winner).length > 0 && nodeCycles.get(e.loser).length > 0;
       elements.push({
-        data: { id: `${e.winner}->${e.loser}`, source: e.winner, target: e.loser, color: NEUTRAL_COLOR, cycleId: null },
+        data: { id: `${e.winner}->${e.loser}`, source: e.winner, target: e.loser, color: NEUTRAL_COLOR, cycleId: null, trimmable },
       });
       continue;
     }
@@ -126,6 +131,7 @@ function render(graph) {
         },
       },
       { selector: ".dimmed", style: { opacity: 0.12 } },
+      { selector: ".trimmed", style: { display: "none" } },
     ],
   });
 
@@ -139,6 +145,12 @@ function render(graph) {
   });
 
   renderLegend(graph.cycles);
+  applyTrim();
+}
+
+function applyTrim() {
+  if (!cy) return;
+  cy.edges().forEach((e) => e.toggleClass("trimmed", trimCheckbox.checked && !!e.data("trimmable")));
 }
 
 function isolateCycle(cycleId) {
