@@ -115,7 +115,9 @@ func toGraphJSON(entry Entry) graphJSON {
 	}
 	teams := entry.Graph.Teams()
 	byTeam := nflTeamColors
-	if entry.Dataset.Conference != "" {
+	if entry.Dataset.League == "cfb" || entry.Dataset.League == "cbb" {
+		// CBB reuses cfbTeamColors directly: ESPN uses the same team
+		// abbreviations for the same school across both sports.
 		byTeam = cfbTeamColors
 	}
 	colors := make(map[string]teamColorJSON, len(teams))

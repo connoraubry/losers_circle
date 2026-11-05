@@ -28,14 +28,21 @@ function cyclesWithEdge(cycles, winner, loser) {
   return ids;
 }
 
-// league returns which of the two top-level dropdown groups d belongs to.
+// league returns which of the top-level dropdown groups d belongs to:
+// "nfl", "cfb", or "cbb".
 function league(d) {
-  return d.conference ? "cfb" : "nfl";
+  return d.league;
+}
+
+// hasConference reports whether leagueName is a conference-scoped league
+// (cfb, cbb) as opposed to a single full-league dataset (nfl).
+function hasConference(leagueName) {
+  return leagueName === "cfb" || leagueName === "cbb";
 }
 
 // populateNav wires up the three dropdowns (league, conference, year) that
-// together identify one dataset. Conference only applies to CFB, so it's
-// hidden whenever the NFL league is selected.
+// together identify one dataset. Conference only applies to CFB/CBB, so
+// it's hidden whenever the NFL league is selected.
 function populateNav() {
   const current = window.DATASETS.find((d) => d.key === window.CURRENT_KEY);
 
@@ -65,11 +72,11 @@ function populateNav() {
 
 function populateConference(selectedLeague, selectedConference) {
   conferenceSelect.innerHTML = "";
-  conferenceSelect.classList.toggle("hidden", selectedLeague !== "cfb");
-  if (selectedLeague !== "cfb") return;
+  conferenceSelect.classList.toggle("hidden", !hasConference(selectedLeague));
+  if (!hasConference(selectedLeague)) return;
 
   const conferences = [...new Set(
-    window.DATASETS.filter((d) => league(d) === "cfb").map((d) => d.conference)
+    window.DATASETS.filter((d) => league(d) === selectedLeague).map((d) => d.conference)
   )].sort();
   for (const c of conferences) {
     const opt = document.createElement("option");
@@ -83,7 +90,7 @@ function populateConference(selectedLeague, selectedConference) {
 function populateYear(selectedLeague, selectedConference, selectedYear) {
   yearSelect.innerHTML = "";
   const matches = window.DATASETS.filter(
-    (d) => league(d) === selectedLeague && (selectedLeague !== "cfb" || d.conference === selectedConference)
+    (d) => league(d) === selectedLeague && (!hasConference(selectedLeague) || d.conference === selectedConference)
   );
   const years = [...new Set(matches.map((d) => d.season))].sort((a, b) => b - a);
   for (const y of years) {
@@ -99,13 +106,13 @@ function populateYear(selectedLeague, selectedConference, selectedYear) {
 // back/forward buttons and URL bar work normally when switching datasets.
 function navigate() {
   const selectedLeague = leagueSelect.value;
-  const selectedConference = selectedLeague === "cfb" ? conferenceSelect.value : undefined;
+  const selectedConference = hasConference(selectedLeague) ? conferenceSelect.value : undefined;
   const selectedYear = Number(yearSelect.value);
   const match = window.DATASETS.find(
     (d) =>
       league(d) === selectedLeague &&
       d.season === selectedYear &&
-      (selectedLeague !== "cfb" || d.conference === selectedConference)
+      (!hasConference(selectedLeague) || d.conference === selectedConference)
   );
   if (match) window.location.href = `${match.key}.html`;
 }

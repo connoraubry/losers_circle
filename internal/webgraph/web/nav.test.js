@@ -14,15 +14,20 @@ const path = require("node:path");
 const APP_JS = fs.readFileSync(path.join(__dirname, "app.js"), "utf8");
 
 // A representative slice of real Dataset JSON (see webgraph.graphJSON):
-// two NFL seasons, plus a couple of seasons each for two conferences.
+// two NFL seasons, a couple of seasons each for two CFB conferences, and
+// a couple of seasons of one CBB conference - CBB only has a SEC entry
+// here (no ACC) specifically so tests can catch league/conference
+// scoping bugs that would otherwise leak CFB's ACC into CBB's list.
 const DATASETS = [
-  { key: "nfl-2026", label: "2026 NFL", season: 2026 },
-  { key: "nfl-2025", label: "2025 NFL", season: 2025 },
-  { key: "acc-2026", label: "2026 ACC", season: 2026, conference: "ACC" },
-  { key: "acc-2025", label: "2025 ACC", season: 2025, conference: "ACC" },
-  { key: "sec-2026", label: "2026 SEC", season: 2026, conference: "SEC" },
-  { key: "sec-2025", label: "2025 SEC", season: 2025, conference: "SEC" },
-  { key: "sec-2024", label: "2024 SEC", season: 2024, conference: "SEC" },
+  { key: "nfl-2026", label: "2026 NFL", season: 2026, league: "nfl" },
+  { key: "nfl-2025", label: "2025 NFL", season: 2025, league: "nfl" },
+  { key: "acc-2026", label: "2026 ACC", season: 2026, league: "cfb", conference: "ACC" },
+  { key: "acc-2025", label: "2025 ACC", season: 2025, league: "cfb", conference: "ACC" },
+  { key: "sec-2026", label: "2026 SEC", season: 2026, league: "cfb", conference: "SEC" },
+  { key: "sec-2025", label: "2025 SEC", season: 2025, league: "cfb", conference: "SEC" },
+  { key: "sec-2024", label: "2024 SEC", season: 2024, league: "cfb", conference: "SEC" },
+  { key: "cbb-sec-2026", label: "2026 SEC (MBB)", season: 2026, league: "cbb", conference: "SEC" },
+  { key: "cbb-sec-2025", label: "2025 SEC (MBB)", season: 2025, league: "cbb", conference: "SEC" },
 ];
 
 function makeSelect() {
@@ -148,7 +153,7 @@ function loadApp(currentKey) {
 test("NFL dataset hides the conference dropdown", () => {
   const { elements } = loadApp("nfl-2025");
   assert.equal(elements.conference.classList.contains("hidden"), true);
-  assert.deepEqual(optionValues(elements.league), ["cfb", "nfl*"]);
+  assert.deepEqual(optionValues(elements.league), ["cbb", "cfb", "nfl*"]);
   assert.deepEqual(optionValues(elements.year), ["2026", "2025*"]);
 });
 
@@ -159,6 +164,13 @@ test("CFB dataset shows the conference dropdown, scoped to that league", () => {
   assert.deepEqual(optionValues(elements.year), ["2026", "2025", "2024*"]);
 });
 
+test("CBB dataset shows the conference dropdown, scoped to cbb only (not CFB's ACC)", () => {
+  const { elements } = loadApp("cbb-sec-2025");
+  assert.equal(elements.conference.classList.contains("hidden"), false);
+  assert.deepEqual(optionValues(elements.conference), ["SEC*"]);
+  assert.deepEqual(optionValues(elements.year), ["2026", "2025*"]);
+});
+
 test("switching league to cfb reveals conference and defaults to a valid page", () => {
   const { window, elements } = loadApp("nfl-2025");
   elements.league.value = "cfb";
@@ -167,6 +179,16 @@ test("switching league to cfb reveals conference and defaults to a valid page", 
   assert.equal(elements.conference.classList.contains("hidden"), false);
   assert.deepEqual(optionValues(elements.conference), ["ACC*", "SEC"]);
   assert.equal(window.location.href, "acc-2026.html");
+});
+
+test("switching league to cbb reveals cbb's own conference list, not CFB's", () => {
+  const { window, elements } = loadApp("sec-2024");
+  elements.league.value = "cbb";
+  elements.league.fireChange();
+
+  assert.equal(elements.conference.classList.contains("hidden"), false);
+  assert.deepEqual(optionValues(elements.conference), ["SEC*"]);
+  assert.equal(window.location.href, "cbb-sec-2026.html");
 });
 
 test("switching league back to nfl hides conference and navigates to an NFL page", () => {
