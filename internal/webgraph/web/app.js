@@ -2,7 +2,9 @@ const NEUTRAL_COLOR = "#999999";
 const MAX_LEGEND_TEAMS = 6;
 
 const statusEl = document.getElementById("status");
-const datasetSelect = document.getElementById("dataset");
+const leagueSelect = document.getElementById("league");
+const conferenceSelect = document.getElementById("conference");
+const yearSelect = document.getElementById("year");
 const trimCheckbox = document.getElementById("trim");
 const legendEl = document.getElementById("legend");
 
@@ -26,23 +28,90 @@ function cyclesWithEdge(cycles, winner, loser) {
   return ids;
 }
 
-function populateDatasetPicker() {
-  for (const d of window.DATASETS) {
+// league returns which of the two top-level dropdown groups d belongs to.
+function league(d) {
+  return d.conference ? "cfb" : "nfl";
+}
+
+// populateNav wires up the three dropdowns (league, conference, year) that
+// together identify one dataset. Conference only applies to CFB, so it's
+// hidden whenever the NFL league is selected.
+function populateNav() {
+  const current = window.DATASETS.find((d) => d.key === window.CURRENT_KEY);
+
+  const leagues = [...new Set(window.DATASETS.map(league))].sort();
+  for (const l of leagues) {
     const opt = document.createElement("option");
-    opt.value = `${d.key}.html`;
-    opt.textContent = d.label;
-    if (d.key === window.CURRENT_KEY) opt.selected = true;
-    datasetSelect.appendChild(opt);
+    opt.value = l;
+    opt.textContent = l.toUpperCase();
+    if (l === league(current)) opt.selected = true;
+    leagueSelect.appendChild(opt);
   }
-  // A real page navigation, not a fetch, so the browser's back/forward
-  // buttons and URL bar work normally when switching datasets.
-  datasetSelect.addEventListener("change", () => {
-    window.location.href = datasetSelect.value;
+
+  populateConference(league(current), current.conference);
+  populateYear(league(current), current.conference, current.season);
+
+  leagueSelect.addEventListener("change", () => {
+    populateConference(leagueSelect.value, undefined);
+    populateYear(leagueSelect.value, conferenceSelect.value, undefined);
+    navigate();
   });
+  conferenceSelect.addEventListener("change", () => {
+    populateYear(leagueSelect.value, conferenceSelect.value, undefined);
+    navigate();
+  });
+  yearSelect.addEventListener("change", navigate);
+}
+
+function populateConference(selectedLeague, selectedConference) {
+  conferenceSelect.innerHTML = "";
+  conferenceSelect.classList.toggle("hidden", selectedLeague !== "cfb");
+  if (selectedLeague !== "cfb") return;
+
+  const conferences = [...new Set(
+    window.DATASETS.filter((d) => league(d) === "cfb").map((d) => d.conference)
+  )].sort();
+  for (const c of conferences) {
+    const opt = document.createElement("option");
+    opt.value = c;
+    opt.textContent = c;
+    if (c === selectedConference) opt.selected = true;
+    conferenceSelect.appendChild(opt);
+  }
+}
+
+function populateYear(selectedLeague, selectedConference, selectedYear) {
+  yearSelect.innerHTML = "";
+  const matches = window.DATASETS.filter(
+    (d) => league(d) === selectedLeague && (selectedLeague !== "cfb" || d.conference === selectedConference)
+  );
+  const years = [...new Set(matches.map((d) => d.season))].sort((a, b) => b - a);
+  for (const y of years) {
+    const opt = document.createElement("option");
+    opt.value = y;
+    opt.textContent = y;
+    if (y === selectedYear) opt.selected = true;
+    yearSelect.appendChild(opt);
+  }
+}
+
+// navigate is a real page navigation, not a fetch, so the browser's
+// back/forward buttons and URL bar work normally when switching datasets.
+function navigate() {
+  const selectedLeague = leagueSelect.value;
+  const selectedConference = selectedLeague === "cfb" ? conferenceSelect.value : undefined;
+  const selectedYear = Number(yearSelect.value);
+  const match = window.DATASETS.find(
+    (d) =>
+      league(d) === selectedLeague &&
+      d.season === selectedYear &&
+      (selectedLeague !== "cfb" || d.conference === selectedConference)
+  );
+  if (match) window.location.href = `${match.key}.html`;
 }
 
 function main() {
-  populateDatasetPicker();
+  populateNav();
   trimCheckbox.addEventListener("change", applyTrim);
   render(window.GRAPH);
   const graph = window.GRAPH;

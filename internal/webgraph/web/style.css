@@ -17,6 +17,10 @@ header h1 {
   margin: 0;
 }
 
+#conference.hidden {
+  display: none;
+}
+
 #status {
   color: #888;
   font-size: 13px;
