@@ -231,7 +231,8 @@ function render(graph) {
       { selector: "node[!inCycle]", style: { opacity: 0.4 } },
       { selector: "edge[?neutral]", style: { opacity: 0.35, "z-index": 1 } },
       { selector: "edge[!neutral]", style: { opacity: 0.8, "z-index": 2 } },
-      { selector: ".dimmed", style: { opacity: 0.12 } },
+      { selector: "edge.emphasized", style: { opacity: 0.9, "z-index": 5 } },
+      { selector: ".dimmed", style: { opacity: 0.08 } },
       { selector: ".trimmed", style: { display: "none" } },
     ],
   });
@@ -289,7 +290,11 @@ function applyHighlight() {
   } else if (selection && selection.type === "node") {
     keep = cy.getElementById(selection.team).closedNeighborhood();
   }
-  cy.elements().forEach((el) => el.toggleClass("dimmed", !!keep && !keep.contains(el)));
+  cy.elements().forEach((el) => {
+    const kept = !!keep && keep.contains(el);
+    el.toggleClass("dimmed", !!keep && !kept);
+    el.toggleClass("emphasized", kept && el.isEdge() && !!el.data("neutral"));
+  });
 
   document.querySelectorAll(".legend-item").forEach((item) => {
     const isActiveCycle = selection && selection.type === "cycle" && Number(item.dataset.cycleId) === selection.id;
