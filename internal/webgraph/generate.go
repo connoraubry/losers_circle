@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 // edgeJSON is one "beat" edge embedded in a dataset's page.
@@ -53,6 +54,7 @@ type pageData struct {
 	CurrentLabel string
 	Datasets     []Dataset
 	Graph        graphJSON
+	GeneratedAt  string
 }
 
 // Generate writes c's datasets as a static site under outDir: one
@@ -66,16 +68,18 @@ func Generate(c *Cache, outDir string) error {
 		return err
 	}
 
+	generatedAt := time.Now().UTC().Format("Jan 2, 2006 15:04 UTC")
+
 	datasets := c.List()
 	for _, d := range datasets {
 		entry, _ := c.Get(d.Key)
-		if err := writePage(outDir, d.Key+".html", d, datasets, toGraphJSON(entry)); err != nil {
+		if err := writePage(outDir, d.Key+".html", d, datasets, toGraphJSON(entry), generatedAt); err != nil {
 			return fmt.Errorf("page %s: %w", d.Key, err)
 		}
 	}
 	if len(datasets) > 0 {
 		entry, _ := c.Get(datasets[0].Key)
-		if err := writePage(outDir, "index.html", datasets[0], datasets, toGraphJSON(entry)); err != nil {
+		if err := writePage(outDir, "index.html", datasets[0], datasets, toGraphJSON(entry), generatedAt); err != nil {
 			return fmt.Errorf("index page: %w", err)
 		}
 	}
@@ -83,7 +87,7 @@ func Generate(c *Cache, outDir string) error {
 	return copyStaticAssets(outDir)
 }
 
-func writePage(outDir, filename string, current Dataset, datasets []Dataset, graph graphJSON) error {
+func writePage(outDir, filename string, current Dataset, datasets []Dataset, graph graphJSON, generatedAt string) error {
 	f, err := os.Create(filepath.Join(outDir, filename))
 	if err != nil {
 		return err
@@ -94,6 +98,7 @@ func writePage(outDir, filename string, current Dataset, datasets []Dataset, gra
 		CurrentLabel: current.Label,
 		Datasets:     datasets,
 		Graph:        graph,
+		GeneratedAt:  generatedAt,
 	})
 }
 
