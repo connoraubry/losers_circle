@@ -161,6 +161,7 @@ function render(graph) {
         primary: colors.primary,
         secondary: colors.secondary,
         order: order.get(team),
+        inCycle: ids.length > 0,
       },
     });
   }
@@ -213,6 +214,7 @@ function render(graph) {
           "font-size": 9,
           width: 28,
           height: 28,
+          "z-index": 10,
         },
       },
       {
@@ -226,6 +228,7 @@ function render(graph) {
           "control-point-step-size": 4,
         },
       },
+      { selector: "node[!inCycle]", style: { opacity: 0.4 } },
       { selector: "edge[?neutral]", style: { opacity: 0.35, "z-index": 1 } },
       { selector: "edge[!neutral]", style: { opacity: 0.8, "z-index": 2 } },
       { selector: ".dimmed", style: { opacity: 0.12 } },
