@@ -1,5 +1,6 @@
 // Command cycle runs the losers circle cycle for a single NFL season, or
-// (with -conference) a single Power 4 college football conference's season.
+// (with -conference, and optionally -sport) a single Power 4 college
+// football or men's basketball conference's season.
 package main
 
 import (
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"losers_circle/internal/cbbconf"
 	"losers_circle/internal/cfbconf"
 	"losers_circle/internal/cycle"
 	"losers_circle/internal/cyclesvg"
@@ -21,7 +23,8 @@ func main() {
 	dir := flag.String("dir", "data", "directory containing season JSON files")
 	season := flag.Int("season", defaultSeason(time.Now()), "NFL season year to load (alias: -year)")
 	flag.IntVar(season, "year", *season, "NFL season year to load (alias: -season)")
-	conference := flag.String("conference", "", "load college football data for this Power 4 conference (SEC, Big Ten, ACC, Big 12) instead of NFL data")
+	conference := flag.String("conference", "", "load college data for this Power 4 conference (SEC, Big Ten, ACC, Big 12) instead of NFL data")
+	sport := flag.String("sport", "cfb", "which Power 4 sport -conference refers to: cfb (college football) or cbb (men's college basketball)")
 	maxWeek := flag.Int("week", 0, "only include games through this week (0 = all weeks)")
 	progress := flag.Bool("progress", false, "print elapsed time and nodes analyzed while solving")
 	upcoming := flag.Bool("upcoming", false, "check whether results in the current and next week's remaining games would create a cycle")
@@ -55,10 +58,14 @@ func main() {
 		fmt.Fprintln(os.Stderr, "error: -first-cycle-join cannot be combined with -week")
 		os.Exit(1)
 	}
+	if *conference != "" && *sport != "cfb" && *sport != "cbb" {
+		fmt.Fprintln(os.Stderr, "error: -sport must be cfb or cbb")
+		os.Exit(1)
+	}
 
 	path := filepath.Join(*dir, fmt.Sprintf("%d.json", *season))
 	if *conference != "" {
-		path = filepath.Join(*dir, "cfb", fmt.Sprintf("%d.json", *season))
+		path = filepath.Join(*dir, *sport, fmt.Sprintf("%d.json", *season))
 	}
 	s, err := nfldata.LoadFile(path)
 	if err != nil {
@@ -66,7 +73,11 @@ func main() {
 		os.Exit(1)
 	}
 	if *conference != "" {
-		s, err = cfbconf.FilterSeason(s, *conference)
+		if *sport == "cbb" {
+			s, err = cbbconf.FilterSeason(s, *conference)
+		} else {
+			s, err = cfbconf.FilterSeason(s, *conference)
+		}
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "error:", err)
 			os.Exit(1)

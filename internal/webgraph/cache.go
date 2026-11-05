@@ -16,20 +16,28 @@ import (
 	"strings"
 	"sync"
 
+	"losers_circle/internal/cbbconf"
 	"losers_circle/internal/cfbconf"
 	"losers_circle/internal/cycle"
 	"losers_circle/internal/nfldata"
 )
 
-// conferences is the fixed set of CFB conferences tracked by cfbconf.
+// conferences is the fixed set of Power 4 conferences tracked by both
+// cfbconf and cbbconf (the two packages hand-maintain membership
+// independently, but track the same four conference names).
 var conferences = []string{cfbconf.SEC, cfbconf.BigTen, cfbconf.ACC, cfbconf.Big12}
 
-// Dataset identifies one graph the viewer can show: either a full NFL
-// season or a single CFB conference's season.
+// leagueOrder ranks each league for sorting the dataset list: NFL first,
+// then CFB, then CBB.
+var leagueOrder = map[string]int{"nfl": 0, "cfb": 1, "cbb": 2}
+
+// Dataset identifies one graph the viewer can show: a full NFL season, or
+// a single CFB or CBB conference's season.
 type Dataset struct {
 	Key        string `json:"key"`
 	Label      string `json:"label"`
 	Season     int    `json:"season"`
+	League     string `json:"league"`
 	Conference string `json:"conference,omitempty"`
 }
 
@@ -102,8 +110,8 @@ func Build(dir, cacheDir string) (*Cache, error) {
 	}
 	sort.Slice(c.datasets, func(i, j int) bool {
 		di, dj := c.datasets[i], c.datasets[j]
-		if (di.Conference == "") != (dj.Conference == "") {
-			return di.Conference == "" // NFL datasets first
+		if di.League != dj.League {
+			return leagueOrder[di.League] < leagueOrder[dj.League]
 		}
 		if di.Season != dj.Season {
 			return di.Season > dj.Season // newest season first
@@ -205,6 +213,7 @@ func discoverDatasets(dir string) ([]datasetJob, error) {
 				Key:    fmt.Sprintf("nfl-%d", season.SeasonYear),
 				Label:  fmt.Sprintf("%d NFL", season.SeasonYear),
 				Season: season.SeasonYear,
+				League: "nfl",
 			},
 			season: season,
 		})
@@ -232,6 +241,37 @@ func discoverDatasets(dir string) ([]datasetJob, error) {
 					Key:        fmt.Sprintf("%s-%d", confSlug(conf), full.SeasonYear),
 					Label:      fmt.Sprintf("%d %s", full.SeasonYear, conf),
 					Season:     full.SeasonYear,
+					League:     "cfb",
+					Conference: conf,
+				},
+				season: filtered,
+			})
+		}
+	}
+
+	cbbFiles, err := filepath.Glob(filepath.Join(dir, "cbb", "*.json"))
+	if err != nil {
+		return nil, err
+	}
+	for _, path := range cbbFiles {
+		full, err := nfldata.LoadFile(path)
+		if err != nil {
+			return nil, err
+		}
+		for _, conf := range conferences {
+			if cbbconf.Teams(full.SeasonYear, conf) == nil {
+				continue
+			}
+			filtered, err := cbbconf.FilterSeason(full, conf)
+			if err != nil {
+				return nil, fmt.Errorf("filter %s %d: %w", conf, full.SeasonYear, err)
+			}
+			jobs = append(jobs, datasetJob{
+				dataset: Dataset{
+					Key:        fmt.Sprintf("cbb-%s-%d", confSlug(conf), full.SeasonYear),
+					Label:      fmt.Sprintf("%d %s (MBB)", full.SeasonYear, conf),
+					Season:     full.SeasonYear,
+					League:     "cbb",
 					Conference: conf,
 				},
 				season: filtered,
