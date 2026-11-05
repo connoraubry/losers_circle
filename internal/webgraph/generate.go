@@ -22,12 +22,22 @@ type cycleJSON struct {
 	Teams []string `json:"teams"`
 }
 
+// teamColorJSON is one team's node fill/border colors, embedded in a
+// dataset's page. Teams with no known colors are simply absent from
+// graphJSON.TeamColors; the viewer falls back to a neutral color for
+// those.
+type teamColorJSON struct {
+	Primary   string `json:"primary"`
+	Secondary string `json:"secondary"`
+}
+
 // graphJSON is a dataset's full graph data, embedded directly into its
 // page (see pageTemplate) rather than fetched separately.
 type graphJSON struct {
-	Teams  []string    `json:"teams"`
-	Edges  []edgeJSON  `json:"edges"`
-	Cycles []cycleJSON `json:"cycles"`
+	Teams      []string                 `json:"teams"`
+	TeamColors map[string]teamColorJSON `json:"teamColors"`
+	Edges      []edgeJSON               `json:"edges"`
+	Cycles     []cycleJSON              `json:"cycles"`
 }
 
 //go:embed templates/page.html.tmpl
@@ -98,7 +108,14 @@ func toGraphJSON(entry Entry) graphJSON {
 	for i, dc := range entry.Cycles {
 		cycles[i] = cycleJSON{ID: i, Color: dc.Color, Teams: dc.Teams}
 	}
-	return graphJSON{Teams: entry.Graph.Teams(), Edges: edges, Cycles: cycles}
+	teams := entry.Graph.Teams()
+	colors := make(map[string]teamColorJSON, len(teams))
+	for _, team := range teams {
+		if c, ok := nflTeamColors[team]; ok {
+			colors[team] = teamColorJSON{Primary: c.Primary, Secondary: c.Secondary}
+		}
+	}
+	return graphJSON{Teams: teams, TeamColors: colors, Edges: edges, Cycles: cycles}
 }
 
 // copyStaticAssets copies every file in the embedded frontend (staticFS,

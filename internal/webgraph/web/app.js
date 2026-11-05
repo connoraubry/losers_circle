@@ -153,10 +153,15 @@ function render(graph) {
   const elements = [];
   for (const team of graph.teams) {
     const ids = nodeCycles.get(team);
-    const color = ids.length > 0 ? graph.cycles[ids[0]].color : NEUTRAL_COLOR;
+    const colors = graph.teamColors[team] || { primary: NEUTRAL_COLOR, secondary: NEUTRAL_COLOR };
     elements.push({
-      data: { id: team, cycleIds: ids, color, order: order.get(team) },
-      classes: ids.length > 0 ? "in-cycle" : "",
+      data: {
+        id: team,
+        cycleIds: ids,
+        primary: colors.primary,
+        secondary: colors.secondary,
+        order: order.get(team),
+      },
     });
   }
   for (const e of graph.edges) {
@@ -198,10 +203,12 @@ function render(graph) {
         selector: "node",
         style: {
           label: "data(id)",
-          "background-color": "data(color)",
+          "background-color": "data(primary)",
+          "border-width": 2,
+          "border-color": "data(secondary)",
           color: "#fff",
           "text-outline-width": 1,
-          "text-outline-color": "data(color)",
+          "text-outline-color": "data(primary)",
           "font-size": 10,
           width: 24,
           height: 24,
