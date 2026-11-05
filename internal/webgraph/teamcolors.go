@@ -8,8 +8,8 @@ type teamColor struct {
 }
 
 // nflTeamColors gives each NFL team's primary/secondary brand colors.
-// CFB teams have no entry yet, so their nodes fall back to the neutral
-// color client-side (see app.js).
+// Teams with no entry fall back to the neutral color client-side (see
+// app.js).
 var nflTeamColors = map[string]teamColor{
 	"ARI": {"#97233F", "#000000"},
 	"ATL": {"#A71930", "#000000"},
@@ -45,11 +45,13 @@ var nflTeamColors = map[string]teamColor{
 	"WAS": {"#5A1414", "#FFB612"},
 }
 
-// cfbTeamColors gives each tracked CFB team's primary/secondary brand
-// colors, keyed by the same ESPN abbreviation cfbconf.membership uses.
-// Covers every team in the SEC/Big Ten/ACC/Big 12 membership tables
-// across all tracked seasons; teams realigning into a tracked
-// conference later need an entry added here too.
+// cfbTeamColors gives each tracked CFB (and, reused, CBB) team's
+// primary/secondary brand colors, keyed by the same ESPN abbreviation
+// cfbconf/cbbconf's membership tables use (the two sports share
+// abbreviations for the same school). Covers every team in the
+// SEC/Big Ten/ACC/Big 12 membership tables across all tracked seasons,
+// including CBB-only members like Notre Dame (ND); teams realigning
+// into a tracked conference later need an entry added here too.
 var cfbTeamColors = map[string]teamColor{
 	// SEC
 	"ALA":  {"#9E1B32", "#FFFFFF"},
@@ -107,6 +109,7 @@ var cfbTeamColors = map[string]teamColor{
 	"CAL":  {"#003262", "#FDB515"},
 	"SMU":  {"#CC0035", "#354CA1"},
 	"STAN": {"#8C1515", "#FFFFFF"},
+	"ND":   {"#0C2340", "#AE9142"}, // full ACC member in basketball only; no CFB membership
 
 	// Big 12
 	"BAY":  {"#154734", "#FFB81C"},
