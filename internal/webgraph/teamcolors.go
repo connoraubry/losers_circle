@@ -44,3 +44,85 @@ var nflTeamColors = map[string]teamColor{
 	"TEN": {"#0C2340", "#4B92DB"},
 	"WAS": {"#5A1414", "#FFB612"},
 }
+
+// cfbTeamColors gives each tracked CFB team's primary/secondary brand
+// colors, keyed by the same ESPN abbreviation cfbconf.membership uses.
+// Covers every team in the SEC/Big Ten/ACC/Big 12 membership tables
+// across all tracked seasons; teams realigning into a tracked
+// conference later need an entry added here too.
+var cfbTeamColors = map[string]teamColor{
+	// SEC
+	"ALA":  {"#9E1B32", "#FFFFFF"},
+	"ARK":  {"#9D2235", "#FFFFFF"},
+	"AUB":  {"#E87722", "#0C2340"},
+	"FLA":  {"#FA4616", "#0021A5"},
+	"UGA":  {"#BA0C2F", "#000000"},
+	"UK":   {"#0033A0", "#FFFFFF"},
+	"LSU":  {"#461D7C", "#FDD023"},
+	"MSST": {"#660000", "#FFFFFF"},
+	"MIZ":  {"#000000", "#F1B82D"},
+	"MISS": {"#CE1126", "#14213D"},
+	"SC":   {"#73000A", "#000000"},
+	"TENN": {"#FF8200", "#FFFFFF"},
+	"TA&M": {"#500000", "#FFFFFF"},
+	"VAN":  {"#000000", "#866D4B"},
+	"OU":   {"#841617", "#FDF9D8"},
+	"TEX":  {"#BF5700", "#FFFFFF"},
+
+	// Big Ten
+	"ILL":  {"#FF5F05", "#13294B"},
+	"IU":   {"#990000", "#EEEDEB"},
+	"IOWA": {"#000000", "#FFCD00"},
+	"MD":   {"#E03A3E", "#FFD520"},
+	"MICH": {"#FFCB05", "#00274C"},
+	"MSU":  {"#18453B", "#FFFFFF"},
+	"MINN": {"#7A0019", "#FFCC33"},
+	"NEB":  {"#E41C38", "#FDF2D9"},
+	"NU":   {"#4E2A84", "#FFFFFF"},
+	"OSU":  {"#BB0000", "#666666"},
+	"PSU":  {"#041E42", "#FFFFFF"},
+	"PUR":  {"#CEB888", "#000000"},
+	"RUTG": {"#CC0033", "#FFFFFF"},
+	"WIS":  {"#C5050C", "#FFFFFF"},
+	"UCLA": {"#2D68C4", "#F2A900"},
+	"USC":  {"#990000", "#FFCC00"},
+	"ORE":  {"#154733", "#FEE123"},
+	"WASH": {"#4B2E83", "#B7A57A"},
+
+	// ACC
+	"BC":   {"#98002E", "#BC9B6A"},
+	"CLEM": {"#F56600", "#522D80"},
+	"DUKE": {"#012169", "#FFFFFF"},
+	"FSU":  {"#782F40", "#CEB888"},
+	"GT":   {"#B3A369", "#003057"},
+	"LOU":  {"#AD0000", "#000000"},
+	"MIA":  {"#F47321", "#005030"},
+	"NCSU": {"#CC0000", "#FFFFFF"},
+	"UNC":  {"#7BAFD4", "#FFFFFF"},
+	"PITT": {"#003594", "#FFB81C"},
+	"SYR":  {"#F76900", "#000E54"},
+	"UVA":  {"#232D4B", "#F84C1E"},
+	"VT":   {"#630031", "#CF4420"},
+	"WAKE": {"#9E7E38", "#000000"},
+	"CAL":  {"#003262", "#FDB515"},
+	"SMU":  {"#CC0035", "#354CA1"},
+	"STAN": {"#8C1515", "#FFFFFF"},
+
+	// Big 12
+	"BAY":  {"#154734", "#FFB81C"},
+	"BYU":  {"#002E5D", "#FFFFFF"},
+	"CIN":  {"#E00122", "#000000"},
+	"HOU":  {"#C8102E", "#FFFFFF"},
+	"ISU":  {"#C8102E", "#F1BE48"},
+	"KU":   {"#0051BA", "#E8000D"},
+	"KSU":  {"#512888", "#FFFFFF"},
+	"OKST": {"#FF7300", "#000000"},
+	"TCU":  {"#4D1979", "#FFFFFF"},
+	"TTU":  {"#CC0000", "#000000"},
+	"UCF":  {"#000000", "#FFC904"},
+	"WVU":  {"#002855", "#EAAA00"},
+	"ARIZ": {"#AB0520", "#0C234B"},
+	"ASU":  {"#8C1D40", "#FFC627"},
+	"COLO": {"#000000", "#CFB87C"},
+	"UTAH": {"#CC0000", "#000000"},
+}

@@ -109,9 +109,13 @@ func toGraphJSON(entry Entry) graphJSON {
 		cycles[i] = cycleJSON{ID: i, Color: dc.Color, Teams: dc.Teams}
 	}
 	teams := entry.Graph.Teams()
+	byTeam := nflTeamColors
+	if entry.Dataset.Conference != "" {
+		byTeam = cfbTeamColors
+	}
 	colors := make(map[string]teamColorJSON, len(teams))
 	for _, team := range teams {
-		if c, ok := nflTeamColors[team]; ok {
+		if c, ok := byTeam[team]; ok {
 			colors[team] = teamColorJSON{Primary: c.Primary, Secondary: c.Secondary}
 		}
 	}
