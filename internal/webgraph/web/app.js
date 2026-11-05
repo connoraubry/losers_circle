@@ -171,7 +171,7 @@ function render(graph) {
       // makes this edge visual noise once the cycle itself is drawn.
       const trimmable = nodeCycles.get(e.winner).length > 0 && nodeCycles.get(e.loser).length > 0;
       elements.push({
-        data: { id: `${e.winner}->${e.loser}`, source: e.winner, target: e.loser, color: NEUTRAL_COLOR, cycleId: null, trimmable },
+        data: { id: `${e.winner}->${e.loser}`, source: e.winner, target: e.loser, color: NEUTRAL_COLOR, cycleId: null, trimmable, neutral: true },
       });
       continue;
     }
@@ -183,6 +183,7 @@ function render(graph) {
           target: e.loser,
           color: graph.cycles[id].color,
           cycleId: id,
+          neutral: false,
         },
       });
     }
@@ -223,9 +224,10 @@ function render(graph) {
           "target-arrow-shape": "triangle",
           "curve-style": "bezier",
           "control-point-step-size": 4,
-          opacity: 0.8,
         },
       },
+      { selector: "edge[?neutral]", style: { opacity: 0.35, "z-index": 1 } },
+      { selector: "edge[!neutral]", style: { opacity: 0.8, "z-index": 2 } },
       { selector: ".dimmed", style: { opacity: 0.12 } },
       { selector: ".trimmed", style: { display: "none" } },
     ],
