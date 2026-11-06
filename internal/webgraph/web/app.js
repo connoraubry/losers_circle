@@ -96,6 +96,17 @@ function populateConference(selectedLeague, selectedConference) {
   }
 }
 
+// yearLabel formats a dataset's season for the year dropdown. CBB's
+// season field (unlike NFL/CFB's single-calendar-year seasons) is the
+// year it ends in, so showing it bare reads like a season that hasn't
+// started yet when e.g. "2027" is actually the season that started in
+// 2026 - shown as "26-27" instead, the straddling range it covers.
+function yearLabel(selectedLeague, year) {
+  if (selectedLeague !== "cbb") return String(year);
+  const two = (y) => String(y % 100).padStart(2, "0");
+  return `${two(year - 1)}-${two(year)}`;
+}
+
 function populateYear(selectedLeague, selectedConference, selectedYear) {
   yearSelect.innerHTML = "";
   const matches = window.DATASETS.filter(
@@ -105,7 +116,7 @@ function populateYear(selectedLeague, selectedConference, selectedYear) {
   for (const y of years) {
     const opt = document.createElement("option");
     opt.value = y;
-    opt.textContent = y;
+    opt.textContent = yearLabel(selectedLeague, y);
     if (y === selectedYear) opt.selected = true;
     yearSelect.appendChild(opt);
   }

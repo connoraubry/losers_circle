@@ -328,7 +328,7 @@ func discoverDatasets(dir string) ([]datasetJob, error) {
 			jobs = append(jobs, datasetJob{
 				dataset: Dataset{
 					Key:        fmt.Sprintf("cbb-%s-%d", confSlug(conf), full.SeasonYear),
-					Label:      fmt.Sprintf("%d %s (MBB)", full.SeasonYear, conf),
+					Label:      fmt.Sprintf("%s %s (MBB)", cbbSeasonLabel(full.SeasonYear), conf),
 					Season:     full.SeasonYear,
 					League:     "cbb",
 					Conference: conf,
@@ -345,4 +345,13 @@ func discoverDatasets(dir string) ([]datasetJob, error) {
 // fragment, e.g. "Big Ten" -> "big-ten".
 func confSlug(conference string) string {
 	return strings.ToLower(strings.ReplaceAll(conference, " ", "-"))
+}
+
+// cbbSeasonLabel formats a CBB season's end year as the straddling
+// "YY-YY" range it actually covers, e.g. 2027 -> "26-27". A bare end
+// year on its own (unlike NFL/CFB's single-calendar-year seasons) reads
+// like a single season that hasn't happened yet, when the season named
+// "2027" is in fact the one that started in 2026.
+func cbbSeasonLabel(endYear int) string {
+	return fmt.Sprintf("%02d-%02d", (endYear-1)%100, endYear%100)
 }

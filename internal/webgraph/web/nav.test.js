@@ -79,6 +79,14 @@ function optionValues(sel) {
   return sel.options.map((o, i) => `${o.value}${i === sel._selectedIndex ? "*" : ""}`);
 }
 
+// optionLabels returns the select's option display text (textContent)
+// in order - distinct from optionValues, since the year dropdown's
+// displayed text can differ from its underlying value (CBB's "26-27"
+// label vs. its plain 2027 value).
+function optionLabels(sel) {
+  return sel.options.map((o) => o.textContent);
+}
+
 function stubElement() {
   return {
     set textContent(_v) {},
@@ -169,6 +177,16 @@ test("CBB dataset shows the conference dropdown, scoped to cbb only (not CFB's A
   assert.equal(elements.conference.classList.contains("hidden"), false);
   assert.deepEqual(optionValues(elements.conference), ["SEC*"]);
   assert.deepEqual(optionValues(elements.year), ["2026", "2025*"]);
+});
+
+test("CBB year dropdown shows the straddling YY-YY range, not a bare end year", () => {
+  const { elements } = loadApp("cbb-sec-2025");
+  assert.deepEqual(optionLabels(elements.year), ["25-26", "24-25"]);
+});
+
+test("CFB year dropdown still shows a bare year (single-calendar-year season)", () => {
+  const { elements } = loadApp("sec-2024");
+  assert.deepEqual(optionLabels(elements.year), ["2026", "2025", "2024"]);
 });
 
 test("switching league to cfb reveals conference and defaults to a valid page", () => {
