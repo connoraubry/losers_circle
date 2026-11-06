@@ -57,11 +57,23 @@ def _fetch_week(season: int, week: int, season_type: int) -> list[Game]:
     return games
 
 
-def fetch_games(season: int, include_postseason: bool = False) -> list[Game]:
+def fetch_games(
+    season: int, include_postseason: bool = False, skip: set[tuple[int, int]] | None = None
+) -> list[Game]:
+    """Fetch every (week, seasontype) not in skip. skip holds (week,
+    seasontype) pairs the caller already knows are fully final - see
+    cli.py's _completed_weeks - so a rerun doesn't re-request weeks that
+    can't have changed.
+    """
+    skip = skip or set()
     games = []
     for week in REG_SEASON_WEEKS:
+        if (week, 2) in skip:
+            continue
         games.extend(_fetch_week(season, week, season_type=2))
     if include_postseason:
         for week in POSTSEASON_WEEKS:
+            if (week, 3) in skip:
+                continue
             games.extend(_fetch_week(season, week, season_type=3))
     return games

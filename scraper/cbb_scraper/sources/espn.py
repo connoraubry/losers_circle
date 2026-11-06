@@ -74,18 +74,31 @@ def _date_range(start: dt.date, end: dt.date) -> list[dt.date]:
     return [start + dt.timedelta(days=i) for i in range(days + 1)]
 
 
-def fetch_games(season: int, include_postseason: bool = False) -> list[Game]:
+def fetch_games(
+    season: int, include_postseason: bool = False, skip_dates: set[str] | None = None
+) -> list[Game]:
+    """Fetch every date in the season range not in skip_dates (ISO
+    "YYYY-MM-DD" strings). skip_dates holds dates the caller already
+    knows are fully final - see cli.py's _completed_dates - so a rerun
+    doesn't re-request one day at a time for a ~130-day season when most
+    of it can't have changed since the last run.
+    """
+    skip_dates = skip_dates or set()
     season_start = dt.date(season - 1, *REG_SEASON_START)
     reg_season_end = dt.date(season, *REG_SEASON_END)
 
     games = []
     for date in _date_range(season_start, reg_season_end):
+        if date.isoformat() in skip_dates:
+            continue
         week = (date - season_start).days // 7 + 1
         games.extend(_fetch_day(season, date, week, game_type="REG"))
 
     if include_postseason:
         postseason_end = dt.date(season, *POSTSEASON_END)
         for date in _date_range(reg_season_end + dt.timedelta(days=1), postseason_end):
+            if date.isoformat() in skip_dates:
+                continue
             week = (date - season_start).days // 7 + 1
             games.extend(_fetch_day(season, date, week, game_type="POST"))
 
