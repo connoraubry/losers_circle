@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"losers_circle/internal/cycle"
@@ -72,27 +73,36 @@ type pageData struct {
 	Datasets     []Dataset
 	Graph        graphJSON
 	GeneratedAt  string
-	AppJSVersion string
-	StyleVersion string
+	AppJSName    string
+	StyleName    string
 }
 
 // Generate writes c's datasets as a static site under outDir: one
 // self-contained HTML page per dataset (its graph data inlined, no
-// fetch required), a shared app.js/style.css, and an index.html mirroring
-// the first (newest) dataset so the site has a sensible landing page.
-// Every page is a real, separately-addressable URL - no client-side
-// routing - so browser back/forward works across datasets for free.
+// fetch required), a shared app-<hash>.js/style-<hash>.css, and an
+// index.html mirroring the first (newest) dataset so the site has a
+// sensible landing page. Every page is a real, separately-addressable
+// URL - no client-side routing - so browser back/forward works across
+// datasets for free.
+//
+// outDir is wiped and rewritten from scratch each run (rather than
+// overwriting in place), so a season/conference that's no longer
+// produced - or a previous build's differently-hashed asset filenames -
+// doesn't linger as an orphaned file.
 func Generate(c *Cache, outDir string) error {
+	if err := os.RemoveAll(outDir); err != nil {
+		return fmt.Errorf("clear %s: %w", outDir, err)
+	}
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
 		return err
 	}
 
 	generatedAt := time.Now().UTC().Format("Jan 2, 2006 15:04 UTC")
-	appJSVersion, err := assetVersion("app.js")
+	appJSName, err := writeHashedAsset(outDir, "app.js")
 	if err != nil {
 		return err
 	}
-	styleVersion, err := assetVersion("style.css")
+	styleName, err := writeHashedAsset(outDir, "style.css")
 	if err != nil {
 		return err
 	}
@@ -100,37 +110,45 @@ func Generate(c *Cache, outDir string) error {
 	datasets := c.List()
 	for _, d := range datasets {
 		entry, _ := c.Get(d.Key)
-		if err := writePage(outDir, d.Key+".html", d, datasets, toGraphJSON(entry), generatedAt, appJSVersion, styleVersion); err != nil {
+		if err := writePage(outDir, d.Key+".html", d, datasets, toGraphJSON(entry), generatedAt, appJSName, styleName); err != nil {
 			return fmt.Errorf("page %s: %w", d.Key, err)
 		}
 	}
 	if len(datasets) > 0 {
 		entry, _ := c.Get(datasets[0].Key)
-		if err := writePage(outDir, "index.html", datasets[0], datasets, toGraphJSON(entry), generatedAt, appJSVersion, styleVersion); err != nil {
+		if err := writePage(outDir, "index.html", datasets[0], datasets, toGraphJSON(entry), generatedAt, appJSName, styleName); err != nil {
 			return fmt.Errorf("index page: %w", err)
 		}
 	}
 
-	return copyStaticAssets(outDir)
+	return nil
 }
 
-// assetVersion returns a short content hash of the embedded static asset
-// at path (relative to staticFS, e.g. "app.js"), used as a cache-busting
-// query param: the generated HTML only requests a new URL for app.js/
-// style.css when their contents actually change, so a CDN's default
-// static-asset caching (which ignores how often the underlying file
-// content changes) can't serve a stale version under a URL that's still
-// in use.
-func assetVersion(path string) (string, error) {
+// writeHashedAsset reads the embedded static asset at path (relative to
+// staticFS, e.g. "app.js"), writes it into outDir under a filename that
+// embeds a short content hash (e.g. "app-fc17b43e.js"), and returns that
+// filename. Content-addressing the filename itself - rather than e.g. a
+// "?v=" query param - means a CDN's default static-asset caching (which
+// ignores how often the underlying file content changes) never has a
+// stale file to serve under a URL that's still in use: a changed file
+// gets a new URL outright, and the old one simply isn't written on the
+// next build (outDir having just been wiped by Generate).
+func writeHashedAsset(outDir, path string) (string, error) {
 	data, err := fs.ReadFile(staticFS, path)
 	if err != nil {
-		return "", fmt.Errorf("hash asset %s: %w", path, err)
+		return "", fmt.Errorf("read asset %s: %w", path, err)
 	}
 	sum := sha256.Sum256(data)
-	return hex.EncodeToString(sum[:])[:8], nil
+	hash := hex.EncodeToString(sum[:])[:8]
+	ext := filepath.Ext(path)
+	name := fmt.Sprintf("%s-%s%s", strings.TrimSuffix(path, ext), hash, ext)
+	if err := os.WriteFile(filepath.Join(outDir, name), data, 0o644); err != nil {
+		return "", fmt.Errorf("write asset %s: %w", name, err)
+	}
+	return name, nil
 }
 
-func writePage(outDir, filename string, current Dataset, datasets []Dataset, graph graphJSON, generatedAt, appJSVersion, styleVersion string) error {
+func writePage(outDir, filename string, current Dataset, datasets []Dataset, graph graphJSON, generatedAt, appJSName, styleName string) error {
 	f, err := os.Create(filepath.Join(outDir, filename))
 	if err != nil {
 		return err
@@ -142,8 +160,8 @@ func writePage(outDir, filename string, current Dataset, datasets []Dataset, gra
 		Datasets:     datasets,
 		Graph:        graph,
 		GeneratedAt:  generatedAt,
-		AppJSVersion: appJSVersion,
-		StyleVersion: styleVersion,
+		AppJSName:    appJSName,
+		StyleName:    styleName,
 	})
 }
 
@@ -193,27 +211,4 @@ func cyclesJSON(dcs []cycle.DistinctCycle) []cycleJSON {
 		cycles[i] = cycleJSON{ID: i, Color: dc.Color, Teams: dc.Teams}
 	}
 	return cycles
-}
-
-// copyStaticAssets copies every file in the embedded frontend (staticFS,
-// now just app.js and style.css - index.html is generated per dataset
-// instead) into outDir, preserving its directory structure.
-func copyStaticAssets(outDir string) error {
-	return fs.WalkDir(staticFS, ".", func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			return nil
-		}
-		data, err := fs.ReadFile(staticFS, path)
-		if err != nil {
-			return err
-		}
-		dest := filepath.Join(outDir, path)
-		if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
-			return err
-		}
-		return os.WriteFile(dest, data, 0o644)
-	})
 }

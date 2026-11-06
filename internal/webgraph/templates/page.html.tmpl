@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>losers circle - {{.CurrentLabel}}</title>
-<link rel="stylesheet" href="style.css?v={{.StyleVersion}}">
+<link rel="stylesheet" href="{{.StyleName}}">
 <script src="https://unpkg.com/cytoscape@3.28.1/dist/cytoscape.min.js"></script>
 </head>
 <body>
@@ -28,6 +28,6 @@
     window.DATASETS = {{.Datasets}};
     window.GRAPH = {{.Graph}};
   </script>
-  <script src="app.js?v={{.AppJSVersion}}"></script>
+  <script src="{{.AppJSName}}"></script>
 </body>
 </html>
