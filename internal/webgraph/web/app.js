@@ -319,6 +319,15 @@ function render(graph) {
       { selector: "edge[!neutral]", style: { opacity: 0.8, "z-index": 2 } },
       { selector: "edge.emphasized", style: { opacity: 0.9, "z-index": 5 } },
       { selector: ".dimmed", style: { opacity: 0.08 } },
+      // A dimmed edge keeping its normal z-index (e.g. 2, same as an
+      // active cycle edge) ties with whatever's drawn on top of it when
+      // two distinct cycles share the same winner->loser connection -
+      // isolating one cycle could still leave its arrowhead covered by
+      // the other cycle's now-faint-but-still-opaque copy. Sinking every
+      // dimmed edge below all non-dimmed tiers (0 < 1 neutral < 2 cycle
+      // < 5 emphasized) resolves that regardless of which tier either
+      // edge started in.
+      { selector: "edge.dimmed", style: { "z-index": 0 } },
       { selector: ".trimmed", style: { display: "none" } },
     ],
   });
