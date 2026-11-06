@@ -1,7 +1,9 @@
 package webgraph
 
 import (
+	"crypto/sha256"
 	_ "embed"
+	"encoding/hex"
 	"fmt"
 	"html/template"
 	"io/fs"
@@ -70,6 +72,8 @@ type pageData struct {
 	Datasets     []Dataset
 	Graph        graphJSON
 	GeneratedAt  string
+	AppJSVersion string
+	StyleVersion string
 }
 
 // Generate writes c's datasets as a static site under outDir: one
@@ -84,17 +88,25 @@ func Generate(c *Cache, outDir string) error {
 	}
 
 	generatedAt := time.Now().UTC().Format("Jan 2, 2006 15:04 UTC")
+	appJSVersion, err := assetVersion("app.js")
+	if err != nil {
+		return err
+	}
+	styleVersion, err := assetVersion("style.css")
+	if err != nil {
+		return err
+	}
 
 	datasets := c.List()
 	for _, d := range datasets {
 		entry, _ := c.Get(d.Key)
-		if err := writePage(outDir, d.Key+".html", d, datasets, toGraphJSON(entry), generatedAt); err != nil {
+		if err := writePage(outDir, d.Key+".html", d, datasets, toGraphJSON(entry), generatedAt, appJSVersion, styleVersion); err != nil {
 			return fmt.Errorf("page %s: %w", d.Key, err)
 		}
 	}
 	if len(datasets) > 0 {
 		entry, _ := c.Get(datasets[0].Key)
-		if err := writePage(outDir, "index.html", datasets[0], datasets, toGraphJSON(entry), generatedAt); err != nil {
+		if err := writePage(outDir, "index.html", datasets[0], datasets, toGraphJSON(entry), generatedAt, appJSVersion, styleVersion); err != nil {
 			return fmt.Errorf("index page: %w", err)
 		}
 	}
@@ -102,7 +114,23 @@ func Generate(c *Cache, outDir string) error {
 	return copyStaticAssets(outDir)
 }
 
-func writePage(outDir, filename string, current Dataset, datasets []Dataset, graph graphJSON, generatedAt string) error {
+// assetVersion returns a short content hash of the embedded static asset
+// at path (relative to staticFS, e.g. "app.js"), used as a cache-busting
+// query param: the generated HTML only requests a new URL for app.js/
+// style.css when their contents actually change, so a CDN's default
+// static-asset caching (which ignores how often the underlying file
+// content changes) can't serve a stale version under a URL that's still
+// in use.
+func assetVersion(path string) (string, error) {
+	data, err := fs.ReadFile(staticFS, path)
+	if err != nil {
+		return "", fmt.Errorf("hash asset %s: %w", path, err)
+	}
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])[:8], nil
+}
+
+func writePage(outDir, filename string, current Dataset, datasets []Dataset, graph graphJSON, generatedAt, appJSVersion, styleVersion string) error {
 	f, err := os.Create(filepath.Join(outDir, filename))
 	if err != nil {
 		return err
@@ -114,6 +142,8 @@ func writePage(outDir, filename string, current Dataset, datasets []Dataset, gra
 		Datasets:     datasets,
 		Graph:        graph,
 		GeneratedAt:  generatedAt,
+		AppJSVersion: appJSVersion,
+		StyleVersion: styleVersion,
 	})
 }
 
