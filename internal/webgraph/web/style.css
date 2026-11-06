@@ -55,6 +55,22 @@ header h1 {
   display: none;
 }
 
+#week-control.hidden {
+  display: none;
+}
+
+#week-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+#week-label {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
 #status {
   color: var(--muted);
   font-size: 13px;

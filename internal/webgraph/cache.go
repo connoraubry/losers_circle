@@ -47,7 +47,24 @@ type Entry struct {
 	Dataset Dataset
 	Graph   *cycle.Graph
 	Cycles  []cycle.DistinctCycle
+	// Weeks holds one cumulative-through-week snapshot per regular-season
+	// week that's been played so far, for the NFL week slider. It's nil
+	// for non-NFL datasets and for NFL datasets with no played games yet.
+	Weeks []WeekSnapshot
 }
+
+// WeekSnapshot is one week's cumulative (through that week) graph and
+// distinct cycles, computed the same way as Entry's full-season Graph/
+// Cycles but filtered to games through Week.
+type WeekSnapshot struct {
+	Week   int
+	Graph  *cycle.Graph
+	Cycles []cycle.DistinctCycle
+}
+
+// maxSliderWeek is the latest NFL regular-season week the week slider
+// covers. Postseason weeks (19+) aren't included in this first version.
+const maxSliderWeek = 18
 
 // Cache holds every dataset's precomputed Entry, built once at startup.
 type Cache struct {
@@ -150,11 +167,53 @@ func (job datasetJob) build(cacheDir string) (Entry, error) {
 		}
 	}
 
+	var weeks []WeekSnapshot
+	if job.dataset.League == "nfl" {
+		weeks = buildWeekSnapshots(job.season)
+	}
+
 	return Entry{
 		Dataset: job.dataset,
 		Graph:   g,
 		Cycles:  cycle.DedupCycles(byTeam),
+		Weeks:   weeks,
 	}, nil
+}
+
+// buildWeekSnapshots computes one cumulative-through-week snapshot per
+// played regular-season week (capped at maxSliderWeek), for the NFL week
+// slider. Each week's Graph (and so its edge list) is always rebuilt
+// fresh, since games keep accumulating every week - but once some week's
+// longest cycle already covers every team, that's provably the largest a
+// cycle can ever get (it can't exceed the team count), so every later
+// week reuses that same Cycles result instead of redoing the actual
+// search, which is the expensive part (see package doc comment).
+func buildWeekSnapshots(s nfldata.Season) []WeekSnapshot {
+	latestPlayed := 0
+	for _, gm := range s.Games {
+		if gm.Played() && gm.Week <= maxSliderWeek && gm.Week > latestPlayed {
+			latestPlayed = gm.Week
+		}
+	}
+	if latestPlayed == 0 {
+		return nil
+	}
+
+	weeks := make([]WeekSnapshot, 0, latestPlayed)
+	var fullCycles []cycle.DistinctCycle
+	for wk := 1; wk <= latestPlayed; wk++ {
+		wg := cycle.Build(nfldata.FilterMaxWeek(s, wk))
+
+		wc := fullCycles
+		if wc == nil {
+			wc = cycle.DedupCycles(wg.LongestByTeam())
+			if len(wc) > 0 && len(wc[0].Teams) == len(s.Teams) {
+				fullCycles = wc
+			}
+		}
+		weeks = append(weeks, WeekSnapshot{Week: wk, Graph: wg, Cycles: wc})
+	}
+	return weeks
 }
 
 // loadCachedByTeam returns the cached byTeam result at path if it exists

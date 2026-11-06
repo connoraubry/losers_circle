@@ -7,11 +7,20 @@ const conferenceSelect = document.getElementById("conference");
 const yearSelect = document.getElementById("year");
 const trimCheckbox = document.getElementById("trim");
 const legendEl = document.getElementById("legend");
+const weekControl = document.getElementById("week-control");
+const weekSlider = document.getElementById("week-slider");
+const weekLabel = document.getElementById("week-label");
 
 let cy = null;
 // Current highlight, or null: either a cycle (legend click) or a node
 // (click on the graph) is isolated, never both at once.
 let selection = null; // { type: "cycle", id } | { type: "node", team }
+// Whether the week slider has been moved yet. Before the first move, the
+// page shows the full, unfiltered season (today's default view, which for
+// a completed season includes playoff weeks the slider itself can't
+// reach) even though the slider control visually sits at its rightmost
+// position.
+let weekTouched = false;
 
 // cyclesWithEdge returns the ids of every cycle in which winner beats loser
 // consecutively - mirrors cycle.CyclesWithEdge on the Go side.
@@ -120,9 +129,68 @@ function navigate() {
 function main() {
   populateNav();
   trimCheckbox.addEventListener("change", applyTrim);
-  render(window.GRAPH);
-  const graph = window.GRAPH;
+  populateWeekSlider();
+  if (!weekTouched) {
+    render(window.GRAPH);
+    updateStatus(window.GRAPH);
+  }
+}
+
+function updateStatus(graph) {
   statusEl.textContent = `${graph.teams.length} teams, ${graph.cycles.length} distinct cycle${graph.cycles.length === 1 ? "" : "s"}`;
+}
+
+// populateWeekSlider wires up the NFL week slider: hidden entirely for
+// non-NFL datasets or NFL datasets with no played weeks yet. A ?week=N
+// query param on load is treated as an explicit, shareable selection (so
+// it's applied immediately); absent that, the slider starts at its
+// rightmost position without actually filtering anything, so the default
+// view stays the full, unfiltered season.
+function populateWeekSlider() {
+  const current = window.DATASETS.find((d) => d.key === window.CURRENT_KEY);
+  const weeks = window.GRAPH.weeks || [];
+  if (league(current) !== "nfl" || weeks.length === 0) {
+    weekControl.classList.toggle("hidden", true);
+    return;
+  }
+  weekControl.classList.toggle("hidden", false);
+
+  const maxWeek = weeks[weeks.length - 1].week;
+  weekSlider.min = "1";
+  weekSlider.max = String(maxWeek);
+
+  const paramWeek = Number(new URLSearchParams(window.location.search).get("week"));
+  const validParam = Number.isInteger(paramWeek) && paramWeek >= 1 && paramWeek <= maxWeek;
+
+  weekTouched = validParam;
+  const initialWeek = validParam ? paramWeek : maxWeek;
+  weekSlider.value = String(initialWeek);
+  updateWeekLabel(initialWeek);
+  if (validParam) renderWeek(initialWeek);
+
+  weekSlider.addEventListener("input", () => {
+    weekTouched = true;
+    const wk = Number(weekSlider.value);
+    renderWeek(wk);
+    const url = new URL(window.location.href);
+    url.searchParams.set("week", String(wk));
+    window.history.replaceState(null, "", url);
+  });
+}
+
+function updateWeekLabel(wk) {
+  weekLabel.textContent = weekTouched ? `through week ${wk}` : `week ${wk} (full season shown)`;
+}
+
+// renderWeek swaps in week wk's precomputed snapshot, sharing the full
+// season's teams/teamColors (those don't vary by week).
+function renderWeek(wk) {
+  const entry = (window.GRAPH.weeks || []).find((w) => w.week === wk);
+  if (!entry) return;
+  updateWeekLabel(wk);
+  const graph = { teams: window.GRAPH.teams, teamColors: window.GRAPH.teamColors, edges: entry.edges, cycles: entry.cycles };
+  render(graph);
+  updateStatus(graph);
 }
 
 function render(graph) {

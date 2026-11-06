@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"losers_circle/internal/cycle"
 )
 
 // edgeJSON is one "beat" edge embedded in a dataset's page.
@@ -39,6 +41,19 @@ type graphJSON struct {
 	TeamColors map[string]teamColorJSON `json:"teamColors"`
 	Edges      []edgeJSON               `json:"edges"`
 	Cycles     []cycleJSON              `json:"cycles"`
+	// Weeks holds one cumulative-through-week snapshot per played NFL
+	// regular-season week, for the week slider. Empty for non-NFL
+	// datasets. TeamColors is shared with the full graph above rather
+	// than repeated per week.
+	Weeks []weekJSON `json:"weeks,omitempty"`
+}
+
+// weekJSON is one week's cumulative graph, embedded alongside the full
+// season's graphJSON.
+type weekJSON struct {
+	Week   int         `json:"week"`
+	Edges  []edgeJSON  `json:"edges"`
+	Cycles []cycleJSON `json:"cycles"`
 }
 
 //go:embed templates/page.html.tmpl
@@ -103,16 +118,9 @@ func writePage(outDir, filename string, current Dataset, datasets []Dataset, gra
 }
 
 // toGraphJSON serializes entry's already-built graph and already-
-// precomputed cycles - no graph construction or cycle search happens here.
+// precomputed cycles (full season, plus one snapshot per week for the NFL
+// week slider) - no graph construction or cycle search happens here.
 func toGraphJSON(entry Entry) graphJSON {
-	edges := make([]edgeJSON, 0, len(entry.Graph.Edges()))
-	for _, e := range entry.Graph.Edges() {
-		edges = append(edges, edgeJSON{Winner: e[0], Loser: e[1]})
-	}
-	cycles := make([]cycleJSON, len(entry.Cycles))
-	for i, dc := range entry.Cycles {
-		cycles[i] = cycleJSON{ID: i, Color: dc.Color, Teams: dc.Teams}
-	}
 	teams := entry.Graph.Teams()
 	byTeam := nflTeamColors
 	if entry.Dataset.League == "cfb" || entry.Dataset.League == "cbb" {
@@ -126,7 +134,35 @@ func toGraphJSON(entry Entry) graphJSON {
 			colors[team] = teamColorJSON{Primary: c.Primary, Secondary: c.Secondary}
 		}
 	}
-	return graphJSON{Teams: teams, TeamColors: colors, Edges: edges, Cycles: cycles}
+
+	weeks := make([]weekJSON, len(entry.Weeks))
+	for i, w := range entry.Weeks {
+		weeks[i] = weekJSON{Week: w.Week, Edges: edgesJSON(w.Graph), Cycles: cyclesJSON(w.Cycles)}
+	}
+
+	return graphJSON{
+		Teams:      teams,
+		TeamColors: colors,
+		Edges:      edgesJSON(entry.Graph),
+		Cycles:     cyclesJSON(entry.Cycles),
+		Weeks:      weeks,
+	}
+}
+
+func edgesJSON(g *cycle.Graph) []edgeJSON {
+	edges := make([]edgeJSON, 0, len(g.Edges()))
+	for _, e := range g.Edges() {
+		edges = append(edges, edgeJSON{Winner: e[0], Loser: e[1]})
+	}
+	return edges
+}
+
+func cyclesJSON(dcs []cycle.DistinctCycle) []cycleJSON {
+	cycles := make([]cycleJSON, len(dcs))
+	for i, dc := range dcs {
+		cycles[i] = cycleJSON{ID: i, Color: dc.Color, Teams: dc.Teams}
+	}
+	return cycles
 }
 
 // copyStaticAssets copies every file in the embedded frontend (staticFS,
